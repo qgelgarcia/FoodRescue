@@ -1,0 +1,39 @@
+{
+  "name": "@foodrescue/frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "start": "vite --host 127.0.0.1",
+    "ionic:serve": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@foodrescue/shared": "*",
+    "@ionic/react": "^8.7.5",
+    "@ionic/react-router": "^8.7.5",
+    "@supabase/supabase-js": "^2.49.1",
+    "clsx": "^2.1.1",
+    "figma-squircle": "^1.1.0",
+    "gsap": "^3.15.0",
+    "ionicons": "^7.4.0",
+    "lucide-react": "^1.49.0",
+    "motion": "^13.5.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router": "^5.3.4",
+    "react-router-dom": "^5.3.4",
+    "react-use-measure": "^2.1.7",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "vite": "^6.0.5"
+  }
+}

@@ -1,26 +1,27 @@
 {
-  "name": "foodrescue",
+  "name": "foodrescue-monorepo",
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "start": "vite --host 127.0.0.1",
-    "ionic:serve": "vite --host 127.0.0.1",
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@ionic/react": "^8.7.5",
-    "@ionic/react-router": "^8.7.5",
-    "ionicons": "^7.4.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router": "^5.3.4",
-    "react-router-dom": "^5.3.4"
+    "dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "npm run dev --workspace=@foodrescue/frontend",
+    "dev:backend": "npm run dev --workspace=@foodrescue/backend",
+    "build": "npm run build:shared && npm run build --workspaces --if-present",
+    "build:frontend": "npm run build --workspace=@foodrescue/frontend",
+    "build:backend": "npm run build --workspace=@foodrescue/backend",
+    "build:shared": "npm run build --workspace=@foodrescue/shared",
+    "start:backend": "npm run start --workspace=@foodrescue/backend",
+    "preview:frontend": "npm run preview --workspace=@foodrescue/frontend",
+    "db:push": "npx supabase db push",
+    "db:diff": "npx supabase db diff",
+    "db:new-migration": "npx supabase migration new"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.5"
+    "concurrently": "^9.1.2"
   }
 }
