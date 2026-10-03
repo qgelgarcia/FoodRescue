@@ -1769,3 +1769,145 @@ ion-content.foodrescue-content {
   --padding-top: 0.5rem;
   text-transform: none;
 }
+
+/* Admin section screens */
+.admin-panel {
+  background: #fff;
+  border: 1px solid #dfe5db;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.admin-table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 560px;
+  font-size: 13px;
+}
+
+.admin-table th {
+  padding: 12px;
+  text-align: left;
+  color: #687066;
+  background: #f6f8f5;
+  border-bottom: 1px solid #dfe5db;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-table td {
+  padding: 14px 12px;
+  color: #2e382d;
+  border-bottom: 1px solid #edf1ea;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eaf7ea;
+  color: #0c6b20;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-empty-state {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #687066;
+  text-align: center;
+}
+
+.admin-empty-state strong {
+  color: #182316;
+  font-size: 16px;
+}
+
+.admin-feedback {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #b6e4b6;
+  border-radius: 8px;
+  background: #eaf7ea;
+  color: #0f5132;
+  font-size: 13px;
+}
+
+.admin-broadcast-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 680px;
+}
+
+.admin-broadcast-form label {
+  color: #2e382d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-broadcast-form textarea {
+  width: 100%;
+  border: 1px solid #d0d7cc;
+  border-radius: 8px;
+  padding: 12px;
+  font: inherit;
+  resize: vertical;
+  background: #fafbf9;
+}
+
+.admin-action-button {
+  width: fit-content;
+  min-width: 180px;
+  padding: 0 18px;
+}
+
+@media (max-width: 760px) {
+  .admin-header {
+    height: auto;
+    min-height: 60px;
+    padding: 12px 14px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .admin-user-info {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .admin-body {
+    flex-direction: column;
+  }
+
+  .admin-sidebar {
+    width: 100%;
+    padding: 10px;
+    overflow-x: auto;
+  }
+
+  .admin-sidebar nav {
+    flex-direction: row;
+    min-width: max-content;
+  }
+
+  .admin-content {
+    padding: 20px 14px 32px;
+  }
+}

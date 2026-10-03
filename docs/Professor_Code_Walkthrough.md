@@ -187,6 +187,10 @@ React here uses functional components rather than class components. There are no
 | `apps/frontend/src/components/HistoryPage.jsx` | `loadClaims`, `handleComplete` | Loads claims and marks a pickup as completed |
 | `apps/frontend/src/components/ProfilePage.jsx` | `ProfilePage` | Displays profile data and calculated impact statistics |
 | `apps/frontend/src/components/ProfilePage.jsx` | `handleSignOut` | Calls the auth service and redirects to login |
+| `apps/frontend/src/modules/admin/AdminDashboard.jsx` | `AdminDashboard` | Renders the protected dashboard and selects the active admin section from the URL |
+| `apps/frontend/src/modules/admin/AdminDashboard.jsx` | `renderDashboard`, `renderUsers`, `renderPosts`, `renderReports`, `renderBroadcast`, `renderLogs` | Builds the six admin section views |
+| `apps/frontend/src/modules/admin/AdminDashboard.jsx` | `handleBroadcast` | Validates the announcement form and displays broadcast feedback |
+| `apps/frontend/src/modules/admin/AdminDashboard.jsx` | `AdminSection`, `AdminTable` | Reusable layout and table components for admin pages |
 | `apps/frontend/src/components/CustomerHeader.jsx` | `CustomerHeader` | Shared header, active pickup capsule, and profile navigation |
 | `apps/frontend/src/components/CustomerHeader.jsx` | `loadClaims`, `handleMarkPickedUp` | Refreshes the pickup capsule and completes a pickup |
 | `apps/frontend/src/components/FloatingBottomDock.jsx` | `FloatingBottomDock` | Renders bottom navigation and pending-claim indicator |

@@ -18,6 +18,15 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useLocation } from 'react-router-dom';
 import FloatingBottomDock from './components/FloatingBottomDock';
 
+const ADMIN_ROUTES = [
+  '/admin/dashboard',
+  '/admin/users',
+  '/admin/posts',
+  '/admin/reports',
+  '/admin/broadcast',
+  '/admin/logs',
+];
+
 function UserModuleTabs({ userProfile }) {
   const location = useLocation();
 
@@ -95,7 +104,9 @@ export default function App() {
     <Switch>
       <Route exact path="/login" component={Login} />
       <Route exact path="/register" component={Register} />
-      <RoleGuard exact path="/admin/dashboard" component={AdminDashboard} allowedRole="admin" />
+      {ADMIN_ROUTES.map((path) => (
+        <RoleGuard key={path} exact path={path} component={AdminDashboard} allowedRole="admin" />
+      ))}
       <Route exact path="/admin"><Redirect to="/admin/dashboard" /></Route>
       <AuthGuard path="/app" component={UserModuleTabs} />
       <Route exact path="/home"><Redirect to="/app/home-feed" /></Route>
