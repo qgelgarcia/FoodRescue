@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
+import { readStoredArray, validateClaimQuantity } from '../lib/validation';
 
 const DEFAULT_POSTS = [
   {
@@ -69,6 +70,16 @@ const DEFAULT_POSTS = [
 
 const LOCAL_STORAGE_CLAIMS_KEY = 'foodrescue_claims_v1';
 const LOCAL_STORAGE_POSTS_KEY = 'foodrescue_local_posts_v1';
+const LOCAL_STORAGE_INVENTORY_KEY = 'foodrescue_inventory_v1';
+
+function readStoredObject(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Fetch available surplus food posts
@@ -91,44 +102,60 @@ export async function getFoodPosts() {
   }
 
   // Load any locally created posts merged with defaults
-  const customPosts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_POSTS_KEY) || '[]');
-  return [...customPosts, ...DEFAULT_POSTS];
+  const customPosts = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
+  const inventory = readStoredObject(LOCAL_STORAGE_INVENTORY_KEY);
+
+  return [...customPosts, ...DEFAULT_POSTS].map((post) => {
+    const remaining = inventory[post.id];
+    if (typeof remaining !== 'number') return post;
+
+    return {
+      ...post,
+      quantity_remaining: remaining,
+      status: remaining === 0 ? 'fully_claimed' : post.status,
+    };
+  });
 }
 
 /**
  * Create a new surplus food listing
  */
 export async function createFoodPost({ foodName, description, category, quantity, pickupAddress, expiresHours = 3, photoUrl }) {
+  const parsedQuantity = Number(quantity);
+  if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1 || parsedQuantity > 100) {
+    throw new Error('Portions must be a whole number from 1 to 100.');
+  }
+
   const expiresAt = new Date(Date.now() + expiresHours * 3600 * 1000).toISOString();
-  
+
   if (isSupabaseConfigured()) {
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      try {
-        const { data, error } = await supabase
-          .from('food_posts')
-          .insert({
-            donor_id: session.user.id,
-            food_name: foodName,
-            description,
-            category: category || 'Meals',
-            quantity_total: parseInt(quantity, 10),
-            quantity_remaining: parseInt(quantity, 10),
-            pickup_address: pickupAddress,
-            pickup_lat: 37.7749,
-            pickup_lng: -122.4194,
-            photo_url: photoUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
-            expires_at: expiresAt,
-            status: 'active'
-          })
-          .select()
-          .maybeSingle();
-
-        if (!error && data) return { post: data, error: null };
-      } catch (err) {
-        // fallback to local storage
-      }
+    if (!session?.user) {
+      throw new Error('Please sign in before publishing a food listing.');
     }
+
+    const { data, error } = await supabase
+      .from('food_posts')
+      .insert({
+        donor_id: session.user.id,
+        food_name: foodName,
+        description,
+        category: category || 'Meals',
+        quantity_total: parsedQuantity,
+        quantity_remaining: parsedQuantity,
+        pickup_address: pickupAddress,
+        pickup_lat: 37.7749,
+        pickup_lng: -122.4194,
+        photo_url: photoUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+        expires_at: expiresAt,
+        status: 'active'
+      })
+      .select()
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (data) return { post: data, error: null };
+    throw new Error('The food listing was not returned by the database.');
   }
 
   const localPost = {
@@ -136,8 +163,8 @@ export async function createFoodPost({ foodName, description, category, quantity
     food_name: foodName,
     description,
     category: category || 'Meals',
-    quantity_total: parseInt(quantity, 10),
-    quantity_remaining: parseInt(quantity, 10),
+    quantity_total: parsedQuantity,
+    quantity_remaining: parsedQuantity,
     pickup_address: pickupAddress,
     photo_url: photoUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
     expires_at: expiresAt,
@@ -145,7 +172,7 @@ export async function createFoodPost({ foodName, description, category, quantity
     donor: { full_name: 'Campus Member' }
   };
 
-  const existing = JSON.parse(localStorage.getItem(LOCAL_STORAGE_POSTS_KEY) || '[]');
+  const existing = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
   localStorage.setItem(LOCAL_STORAGE_POSTS_KEY, JSON.stringify([localPost, ...existing]));
   return { post: localPost, error: null };
 }
@@ -154,6 +181,22 @@ export async function createFoodPost({ foodName, description, category, quantity
  * Claim portions of a food post
  */
 export async function claimFoodPost(post, portionCount = 1) {
+  const validationError = validateClaimQuantity(post, portionCount);
+  if (validationError) throw new Error(validationError);
+
+  if (isSupabaseConfigured()) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Please sign in before claiming food.');
+
+    const { error } = await supabase.rpc('claim_food', {
+      post_id: post.id,
+      claimant_id: session.user.id,
+      qty: portionCount,
+    });
+
+    if (error) throw new Error(error.message);
+  }
+
   const claimRecord = {
     id: 'claim-' + Date.now().toString(36),
     claim_code: `FR-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -170,26 +213,13 @@ export async function claimFoodPost(post, portionCount = 1) {
   };
 
   // Persist locally
-  const claims = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CLAIMS_KEY) || '[]');
+  const claims = readStoredArray(LOCAL_STORAGE_CLAIMS_KEY);
   claims.unshift(claimRecord);
   localStorage.setItem(LOCAL_STORAGE_CLAIMS_KEY, JSON.stringify(claims));
 
-  // If Supabase configured, attempt remote insert
-  if (isSupabaseConfigured()) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await supabase.from('claims').insert({
-          post_id: post.id,
-          claimer_id: session.user.id,
-          quantity_claimed: portionCount,
-          status: 'claimed'
-        });
-      }
-    } catch {
-      // offline fallback handled
-    }
-  }
+  const inventory = readStoredObject(LOCAL_STORAGE_INVENTORY_KEY);
+  inventory[post.id] = Number(post.quantity_remaining) - portionCount;
+  localStorage.setItem(LOCAL_STORAGE_INVENTORY_KEY, JSON.stringify(inventory));
 
   // Dispatch event for UI reactivity
   window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: claimRecord }));
@@ -200,15 +230,14 @@ export async function claimFoodPost(post, portionCount = 1) {
  * Get active claims for current user
  */
 export function getActiveClaims() {
-  const claims = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CLAIMS_KEY) || '[]');
-  return claims;
+  return readStoredArray(LOCAL_STORAGE_CLAIMS_KEY);
 }
 
 /**
  * Mark a claim as completed / picked up
  */
 export function completeClaim(claimId) {
-  const claims = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CLAIMS_KEY) || '[]');
+  const claims = readStoredArray(LOCAL_STORAGE_CLAIMS_KEY);
   const updated = claims.map((c) => (c.id === claimId ? { ...c, status: 'picked_up' } : c));
   localStorage.setItem(LOCAL_STORAGE_CLAIMS_KEY, JSON.stringify(updated));
   window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: { id: claimId, status: 'picked_up' } }));

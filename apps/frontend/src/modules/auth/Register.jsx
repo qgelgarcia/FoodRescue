@@ -36,7 +36,13 @@ export default function Register() {
     setSuccessMsg('');
 
     const cleanEmail = email.trim();
+    const cleanName = fullName.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!cleanName || cleanName.length < 2 || cleanName.length > 80) {
+      setError('Please provide a name between 2 and 80 characters.');
+      return;
+    }
 
     if (!cleanEmail || !emailRegex.test(cleanEmail)) {
       setError('Please provide a valid email address.');
@@ -53,11 +59,16 @@ export default function Register() {
       return;
     }
 
+    if (phone && !/^[0-9+()\-\s]{7,20}$/.test(phone.trim())) {
+      setError('Please provide a valid phone number or leave it blank.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const { user, profile, requiresConfirmation, error: err } = await register({
-        fullName,
+        fullName: cleanName,
         email: cleanEmail,
         password,
         phone,
@@ -257,7 +268,7 @@ export default function Register() {
         </form>
 
         <div className="auth-footer">
-          Already registered? <a href="/login">Sign in here</a>
+          Already registered? <button type="button" className="link-btn" onClick={() => history.push('/login')}>Sign in here</button>
         </div>
       </div>
     </div>

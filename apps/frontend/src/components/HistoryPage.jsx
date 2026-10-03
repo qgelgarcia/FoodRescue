@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Ticket, MapPin, CheckCircle2, Clock, Utensils, ArrowRight } from 'lucide-react';
 import CustomerHeader from './CustomerHeader';
+import PageShell from './PageShell';
 
 import { getActiveClaims, completeClaim } from '../services/food';
 
@@ -24,7 +25,8 @@ export default function HistoryPage({ userProfile }) {
   }
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
+    <PageShell>
+      <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
       <CustomerHeader active="history" userProfile={userProfile} />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
@@ -131,6 +133,7 @@ export default function HistoryPage({ userProfile }) {
       </main>
 
       
-    </div>
+      </div>
+    </PageShell>
   );
 }

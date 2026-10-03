@@ -146,7 +146,8 @@ export default function Login() {
       setError('Please enter a valid email address (e.g., student@campus.edu).');
       return false;
     }
-    if (!password) {
+    const demoMode = !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!password && (mode === 'signup' || !demoMode)) {
       setError('Please enter your password.');
       return false;
     }
@@ -268,11 +269,11 @@ export default function Login() {
   // Quick fill helper for demo accounts
   function fillDemo(demoEmail, demoRole, label) {
     setEmail(demoEmail);
-    setPassword('Password123!');
+    setPassword('');
     setActiveDemoRole(label);
     setMode('signin');
     setError('');
-    setSuccessMsg('');
+    setSuccessMsg('Demo email filled. Local demo mode accepts the sign-in without a password.');
   }
 
   const pwdStrength = mode === 'signup' ? getPasswordStrength(password) : null;

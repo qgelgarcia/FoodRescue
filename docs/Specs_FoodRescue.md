@@ -4,7 +4,7 @@
 A mobile platform (with a web-based admin panel built from the same codebase) that connects students, campus organizations, and food providers to share surplus food that is still safe to eat, reducing waste and improving food access on campus.
 
 **Target users:** Students, campus organizations, food providers, and platform admins.
-**Core stack:** Ionic (Angular), Supabase (Postgres, Auth, Realtime, Storage, Edge Functions), Leaflet/OpenStreetMap, Firebase Cloud Messaging.
+**Current core stack:** Ionic React, Vite, React Router, Supabase (Postgres, Auth, Storage, RPC), Tailwind CSS, and an Express TypeScript health service. The map is currently a CSS campus prototype; push messaging is out of scope for the current demo.
 
 ## 2. Functional Requirements
 
@@ -30,7 +30,7 @@ A mobile platform (with a web-based admin panel built from the same codebase) th
 - FR-15: Claimant can cancel a pending claim.
 
 ### 2.4 Map & Location
-- FR-16: Pickup location is set via an interactive map (Leaflet + OpenStreetMap) when creating a post.
+- FR-16: The current prototype collects pickup location/instructions as text and displays a CSS campus map; a real Leaflet/OpenStreetMap picker remains a future implementation.
 - FR-17: Feed/detail views display the pickup pin on a map.
 - FR-18: Feed can be sorted by distance from the user's current location.
 

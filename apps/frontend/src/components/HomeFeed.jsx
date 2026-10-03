@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { IonInput } from '@ionic/react';
 import { 
   Sparkles, 
   Search, 
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 import CustomerHeader from './CustomerHeader';
 import FoodCard from './FoodCard';
+import PageShell from './PageShell';
 
 import { getFoodPosts } from '../services/food';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,6 +23,7 @@ export default function HomeFeed({ userProfile }) {
   const [category, setCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [claimToast, setClaimToast] = useState(null);
 
   useEffect(() => {
@@ -29,9 +32,16 @@ export default function HomeFeed({ userProfile }) {
 
   async function fetchPosts() {
     setLoading(true);
-    const data = await getFoodPosts();
-    setPosts(data);
-    setLoading(false);
+    setError('');
+    try {
+      const data = await getFoodPosts();
+      setPosts(data);
+    } catch {
+      setPosts([]);
+      setError('We could not load the food feed. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleClaimSuccess(claim) {
@@ -56,7 +66,8 @@ export default function HomeFeed({ userProfile }) {
   });
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-24 relative">
+    <PageShell>
+      <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-24 relative">
       <CustomerHeader active="home" userProfile={userProfile} />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
@@ -69,6 +80,8 @@ export default function HomeFeed({ userProfile }) {
               <p className="font-semibold text-xs text-[#182019]">{claimToast}</p>
             </div>
             <button 
+              type="button"
+              aria-label="Dismiss claim confirmation"
               onClick={() => setClaimToast(null)}
               className="text-xs font-semibold px-2 py-1 hover:bg-neutral-100 rounded-lg text-[#687066]"
             >
@@ -91,12 +104,14 @@ export default function HomeFeed({ userProfile }) {
 
           {/* Quick Search with clean icon */}
           <div className="relative w-full md:w-72">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search dishes or halls..."
-              className="w-full bg-white border border-[#2a382e]/20 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-[#182019] placeholder:text-[#687066] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#2c8a38]"
+             <IonInput
+               id="food-search"
+               type="text"
+               value={searchQuery}
+               onIonInput={(e) => setSearchQuery(e.detail.value || '')}
+               aria-label="Search food listings"
+               placeholder="Search dishes or halls..."
+               className="w-full bg-white border border-[#2a382e]/20 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-[#182019] placeholder:text-[#687066] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#2c8a38]"
             />
             <Search size={14} className="absolute left-3.5 top-3 text-[#687066] pointer-events-none" />
           </div>
@@ -107,6 +122,7 @@ export default function HomeFeed({ userProfile }) {
             <button
               key={cat.label}
               onClick={() => setCategory(cat.label)}
+              aria-pressed={category === cat.label}
               className={`relative flex-1 py-2.5 rounded-full text-[13px] font-bold transition-colors duration-300 whitespace-nowrap flex items-center justify-center z-10 ${
                 category === cat.label
                   ? 'text-white'
@@ -155,6 +171,18 @@ export default function HomeFeed({ userProfile }) {
               </div>
             ))}
           </div>
+        ) : error ? (
+          <div className="py-12 text-center bg-white rounded-3xl border border-rose-200 p-8" role="alert">
+            <h3 className="font-bold text-base text-rose-800">Unable to load listings</h3>
+            <p className="text-xs text-rose-700 mt-1">{error}</p>
+            <button
+              type="button"
+              onClick={fetchPosts}
+              className="mt-4 min-h-11 px-5 py-2 bg-[#2c8a38] text-white rounded-2xl text-xs font-bold shadow-sm hover:bg-[#23702d]"
+            >
+              Try Again
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center bg-white rounded-3xl border border-dashed border-[#2a382e]/20 p-8">
             <UtensilsCrossed size={32} className="mx-auto text-[#687066] mb-2" />
@@ -179,6 +207,7 @@ export default function HomeFeed({ userProfile }) {
 
       {/* Interactive macOS-Style Calamansi Dock in Pristine Light Mode */}
       
-    </div>
+      </div>
+    </PageShell>
   );
 }

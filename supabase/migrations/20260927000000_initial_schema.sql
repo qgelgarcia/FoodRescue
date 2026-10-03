@@ -23,7 +23,11 @@ begin
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', 'Campus Member'),
     new.raw_user_meta_data->>'phone',
-    coalesce(new.raw_user_meta_data->>'role', 'student')
+     case
+       when new.raw_user_meta_data->>'role' in ('student', 'org', 'provider')
+         then new.raw_user_meta_data->>'role'
+       else 'student'
+     end
   )
   on conflict (id) do update set
     full_name = excluded.full_name,
@@ -37,6 +41,29 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+create or replace function public.prevent_profile_role_escalation()
+returns trigger as $$
+begin
+  if old.role is distinct from new.role
+     and auth.uid() is not null
+     and (
+       auth.uid() <> old.id
+       or not exists (
+         select 1 from public.profiles admin_profile
+         where admin_profile.id = auth.uid() and admin_profile.role = 'admin'
+       )
+     ) then
+    raise exception 'Users cannot change their own profile role';
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+drop trigger if exists prevent_profile_role_escalation on public.profiles;
+create trigger prevent_profile_role_escalation
+  before update on public.profiles
+  for each row execute procedure public.prevent_profile_role_escalation();
 
 -- 2. FOOD_POSTS
 create table if not exists public.food_posts (
@@ -196,6 +223,14 @@ create policy "admin_only_logs" on public.admin_logs for all using (
 create or replace function public.claim_food(post_id uuid, claimant_id uuid, qty int)
 returns void as $$
 begin
+  if auth.uid() is null or auth.uid() <> claimant_id then
+    raise exception 'The authenticated user can only create claims for their own account';
+  end if;
+
+  if qty is null or qty <= 0 then
+    raise exception 'Claim quantity must be greater than zero';
+  end if;
+
   update public.food_posts
   set quantity_remaining = quantity_remaining - qty,
       status = case when quantity_remaining - qty <= 0 then 'fully_claimed' else status end
@@ -208,4 +243,7 @@ begin
   insert into public.claims (post_id, claimant_id, quantity_claimed)
   values (post_id, claimant_id, qty);
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
+
+revoke all on function public.claim_food(uuid, uuid, int) from public;
+grant execute on function public.claim_food(uuid, uuid, int) to authenticated;

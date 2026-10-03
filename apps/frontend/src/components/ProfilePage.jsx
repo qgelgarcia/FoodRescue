@@ -18,6 +18,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import CustomerHeader from './CustomerHeader';
+import PageShell from './PageShell';
 
 import { NumberTicker } from '../components/ui/calamansi/number-ticker';
 import { logout } from '../services/auth';
@@ -39,7 +40,8 @@ export default function ProfilePage({ userProfile }) {
   }
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
+    <PageShell>
+      <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
       <CustomerHeader active="profile" userProfile={userProfile} />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
@@ -234,6 +236,7 @@ export default function ProfilePage({ userProfile }) {
       </main>
 
       
-    </div>
+      </div>
+    </PageShell>
   );
 }

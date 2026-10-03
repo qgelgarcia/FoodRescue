@@ -9,7 +9,7 @@
   --pale: #f5faee;
   --line: #dce4d7;
   --card: #fff;
-  --orange: #b65b00
+  --orange: #b65b00;
 }
 
 * {
@@ -1714,4 +1714,58 @@ ion-tab-bar {
 .auth-footer a:hover,
 .link-btn:hover {
   text-decoration: underline;
-}
+}
+
+/* Shared accessibility and Ionic composition rules for the active React UI. */
+button,
+a {
+  min-height: 44px;
+}
+
+button {
+  min-width: 44px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(44, 138, 56, 0.45);
+  outline-offset: 2px;
+}
+
+ion-card.food-card-ion {
+  --background: transparent;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+ion-content.foodrescue-content {
+  --background: #f5faee;
+}
+
+.post-submit-ionic {
+  --background: linear-gradient(to bottom, #2c8a38, #1c6428);
+  --background-hover: #23702d;
+  --border-radius: 1.25rem;
+  --color: #fff;
+  --padding-bottom: 1rem;
+  --padding-top: 1rem;
+  --box-shadow: 0 10px 20px rgba(28, 100, 40, 0.2);
+  text-transform: none;
+}
+
+.map-center-button {
+  --background: #fff;
+  --background-hover: #f0f6ed;
+  --border-color: rgba(42, 56, 46, 0.2);
+  --border-radius: 1rem;
+  --color: #182019;
+  --padding-bottom: 0.5rem;
+  --padding-start: 1rem;
+  --padding-end: 1rem;
+  --padding-top: 0.5rem;
+  text-transform: none;
+}

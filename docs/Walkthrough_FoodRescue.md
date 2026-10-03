@@ -2,6 +2,9 @@
 
 This document describes the end-to-end journey for each user type, screen by screen.
 
+> This is the target product journey. Current prototype limitations and manual checks are
+> listed in `Rubric_Audit.md`.
+
 ## 1. Onboarding & Auth (shared)
 1. User opens app → **Login screen**.
 2. New user taps "Register" → fills name, email, password, phone, selects role (`student`, `org`, `provider`).
@@ -11,7 +14,7 @@ This document describes the end-to-end journey for each user type, screen by scr
 
 ## 2. Donor Journey (posting food)
 1. Donor taps **"+ New Post"** on Home Feed or Create Post tab.
-2. Fills form: food name, description, category, quantity, optional photo, pickup location (pin on Leaflet map or auto-detect), expiration/time limit.
+2. Fills form: food name, description, category, quantity, display photo preview, pickup address, and expiration/time limit.
 3. Submits → post inserted into `food_posts`, `status = 'active'`.
 4. Post appears in nearby users' feeds sorted by distance/deadline, and triggers a `new_post_nearby` notification to nearby subscribed users.
 5. Donor watches **My Posts** — sees countdown timer and quantity remaining live (Realtime updates as claims come in).

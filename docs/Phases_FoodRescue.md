@@ -1,29 +1,32 @@
 # FoodRescue — Development Phases
 
+> This is the original planned roadmap. The current checkout is Ionic React + Vite, so the
+> implementation locations and current gaps are tracked in `Rubric_Audit.md`.
+
 ## Phase 0: Setup
-- Initialize Ionic + Angular project (`ionic start foodrescue blank --type=angular`).
+- Initialize the Ionic React + Vite project and npm workspaces.
 - Create Supabase project; note API URL and anon key.
-- Install `@supabase/supabase-js`, Leaflet, and Capacitor plugins (geolocation, push notifications).
+- Install `@ionic/react`, `@supabase/supabase-js`, and the required React UI dependencies.
 - Set up folder structure: `modules/auth`, `modules/user`, `modules/admin`, `services`, `guards`.
-- Configure environment files (`environment.ts`) with Supabase credentials.
+- Configure `.env` files with Supabase credentials; keep real credentials out of Git.
 
 ## Phase 1: Database & Auth Foundation
 - Create all tables in Supabase: `profiles`, `food_posts`, `claims`, `notifications`, `reports`, `admin_logs`.
 - Add trigger to auto-create a `profiles` row on `auth.users` insert.
 - Enable RLS and write all policies (see `Rules_FoodRescue.md` and `Database_FoodRescue.md`).
-- Build shared `AuthModule`: register, login, logout, session persistence.
+- Build shared React auth screens and service modules: register, login, logout, session persistence.
 - Build `AuthGuard` and `RoleGuard`; implement post-login role-based redirect.
 - **Milestone:** a user can register, log in, and land on the correct home screen based on role.
 
 ## Phase 2: Core User Module — Posting
-- Build `supabase.service.ts` and `posts.service.ts`.
-- Build **Create Post** screen: form + Leaflet map picker for pickup location + photo upload to Storage.
+- Build `services/supabase.js` and `services/food.js`.
+- Build **Create Post** screen: form, pickup location field, preview photos, and validation.
 - Build **My Posts** screen: list donor's own posts with live status/quantity.
 - Implement the `claim_food` RPC function and scheduled expiration cron job in Supabase.
 - **Milestone:** a donor can create a post, see it saved, and see it auto-expire after its deadline.
 
 ## Phase 3: Core User Module — Claiming
-- Build **Home Feed**: active posts list, sorted by distance/deadline, countdown timers, Realtime subscription for live quantity updates.
+- Build **Home Feed**: active posts list, search/category filters, countdown timers, and claim events.
 - Build **Post Detail** screen with map view of pickup location.
 - Build **Claim Food** flow calling the `claim_food` RPC.
 - Build **My Claims** screen with live status tracking.
@@ -31,13 +34,13 @@
 - **Milestone:** two test accounts can post and claim food end-to-end, with quantities updating live for both.
 
 ## Phase 4: Notifications & History
-- Integrate Firebase Cloud Messaging for push notifications (new post nearby, claim received/accepted/rejected, pickup reminder).
+- Add in-app claim feedback first; push notification integration remains a future phase.
 - Build in-app **Notifications** inbox with read/unread state.
 - Build **History** screens for both donor and claimant views.
 - **Milestone:** all notification triggers fire correctly and are visible both as push and in-app.
 
 ## Phase 5: Admin Module
-- Build `admin.service.ts` and the `/admin/*` route module with `ion-split-pane` layout.
+- Build the `/admin/*` route module and replace placeholder admin actions with data-backed screens.
 - Build **Dashboard** with summary metrics (active posts, food redistributed, active users, open reports).
 - Build **User Management** (search/filter/suspend/ban).
 - Build **Post Moderation** (view all, remove violating posts).

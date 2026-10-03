@@ -1,19 +1,19 @@
 # FoodRescue — Architecture
 
 ## 1. Overview
-FoodRescue is a single Ionic (Angular) codebase serving two experiences from one app shell:
+FoodRescue is a Vite monorepo with an Ionic React frontend serving two experiences from one app shell:
 - **User module** — mobile-first, used by students/donors/claimants (Capacitor build + PWA on phones).
 - **Admin module** — same codebase, styled and routed for desktop/web use (staff moderation, analytics).
 
-Both modules talk to the same **Supabase** backend (Postgres + Auth + Realtime + Storage + Edge Functions/Cron). There is no separate custom REST API server — Supabase's client library (`supabase-js`) is called directly from the frontend, secured by **Row Level Security (RLS)** at the database layer.
+The frontend talks directly to **Supabase** (Postgres + Auth + Storage) through `supabase-js`, secured by **Row Level Security (RLS)**. A small Express TypeScript service also exists under `apps/backend` and currently provides the health endpoint used to verify the backend deployment.
 
 ## 2. High-Level Diagram
 
 ```
 ┌───────────────────────────────────────────────────────────┐
-│                     IONIC APP (single repo)                │
+│                  IONIC REACT APP (single repo)              │
 │                                                             │
-│   /app/*  (mobile, ion-tabs)     /admin/*  (web, split-pane)│
+│   /app/*  (mobile, React dock)   /admin/*  (web, admin layout)│
 │   Home Feed, Map, Create Post,   Dashboard, Users, Posts,   │
 │   My Posts, Claims, Notifs,      Reports, Broadcast, Logs   │
 │   Profile                                                   │
@@ -32,20 +32,19 @@ Both modules talk to the same **Supabase** backend (Postgres + Auth + Realtime +
                 │   - notification triggers│
                 └─────────────────────────┘
                             +
-        OpenStreetMap / Leaflet.js (map rendering)
-        Firebase Cloud Messaging (push notifications)
+         CSS-based campus map prototype in `MapPage.jsx`
 ```
 
 ## 3. Client Layer
 | Concern | Choice |
 |---|---|
-| Framework | Ionic + Angular |
+| Framework | React 18 + Ionic React |
 | Mobile packaging | Capacitor (Android/iOS) |
 | Admin packaging | Same build, deployed as static PWA/web app |
-| State/data access | `supabase-js` via injectable Angular services |
-| Maps | Leaflet.js + OpenStreetMap tiles |
-| Push notifications | Firebase Cloud Messaging (mobile only) |
-| Styling | Ionic components; `ion-tabs` for mobile nav, `ion-split-pane` + `ion-menu` for admin nav |
+| State/data access | React hooks and plain JavaScript service modules |
+| Maps | CSS-based campus map prototype in `MapPage.jsx` |
+| Notifications | Claim feedback banners and local pickup events; push messaging is not implemented |
+| Styling | Tailwind utility classes, `styles.css`, and selected Ionic primitives |
 
 ## 4. Backend Layer (Supabase)
 | Concern | Choice |
@@ -72,14 +71,27 @@ Both modules talk to the same **Supabase** backend (Postgres + Auth + Realtime +
 |---|---|
 | Mobile app | Capacitor build → Google Play / App Store, or installed as PWA |
 | Admin panel | Same repo build, deployed as a static site (Netlify/Vercel/Firebase Hosting) reachable via browser |
-| Backend | Fully managed by Supabase (no server to provision) |
+| Backend | Express health service plus Supabase database/Auth/Storage |
 | Images | Supabase Storage, public-read bucket for post photos |
 
 **Recommended for this project:** Option A — single deployment, one PWA bundle, role-based redirect after login. Simpler to build, run, and demo than maintaining two separate bundles.
 
 ## 7. Key Architectural Decisions
-1. **No custom backend server** — Supabase replaces Express/API layer entirely; less infra to maintain for a student project.
+1. **Supabase-first data access** — the frontend uses `supabase-js` for authenticated CRUD and the Express service remains a small health/API boundary.
 2. **Security lives in the database (RLS)**, not just in app code — prevents a student from bypassing rules by editing client code.
 3. **Atomic quantity decrement via Postgres RPC function**, not app-side read-then-write, to prevent race conditions when multiple users claim the same post simultaneously.
 4. **Realtime subscriptions** replace the need for Socket.io — Supabase pushes DB changes directly to subscribed clients.
-5. **One Ionic codebase** for both user and admin, differentiated by route module and layout component (tabs vs. split-pane), reducing duplication of auth/services code.
+5. **One Ionic React codebase** for both user and admin, differentiated by route guards and layout components, reducing duplication of auth/services code.
+
+## 8. Actual Source Locations
+| Concern | Repository location |
+|---|---|
+| React entry point and Ionic app shell | `apps/frontend/src/main.jsx` |
+| Routes and guards | `apps/frontend/src/App.jsx`, `apps/frontend/src/guards/` |
+| User screens | `apps/frontend/src/components/` |
+| Login/register screens | `apps/frontend/src/modules/auth/` |
+| Reusable UI effects | `apps/frontend/src/components/ui/calamansi/` |
+| Supabase client and data services | `apps/frontend/src/services/` |
+| Shared TypeScript interfaces | `packages/shared/src/index.ts` |
+| Express server and health route | `apps/backend/src/` |
+| Database schema, RLS, and RPC | `supabase/migrations/` |

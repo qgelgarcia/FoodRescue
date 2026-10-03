@@ -49,6 +49,7 @@ export function DockItem({
   className,
   onClick,
   active = false,
+  ariaLabel,
 }) {
   const dockMouseX = useContext(DockMouseContext);
   const { reach, size, magnify } = useContext(DockConfigContext);
@@ -86,6 +87,8 @@ export function DockItem({
       <motion.button
         type="button"
         onClick={onClick}
+        aria-label={ariaLabel}
+        title={ariaLabel}
         style={{
           width: active ? (reduceMotion ? size * 1.7 : expandedSize) : (reduceMotion ? size : springSize),
           height: reduceMotion ? size : springSize,

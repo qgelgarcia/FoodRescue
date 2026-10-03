@@ -1,13 +1,10 @@
 import React from 'react';
-import { Redirect, Route, Switch, useHistory } from 'react-router-dom';
-import { IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs } from '@ionic/react';
-import { addCircleOutline, homeOutline, mapOutline, personCircleOutline, timeOutline } from 'ionicons/icons';
+import { Redirect, Route, Switch } from 'react-router-dom';
 import Login from './modules/auth/Login';
 import Register from './modules/auth/Register';
 import AdminDashboard from './modules/admin/AdminDashboard';
 import AuthGuard from './guards/AuthGuard';
 import RoleGuard from './guards/RoleGuard';
-import { logout } from './services/auth';
 
 // Unused legacy components removed to prevent naming conflicts
 

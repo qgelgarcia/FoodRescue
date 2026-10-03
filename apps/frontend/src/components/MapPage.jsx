@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { IonButton } from '@ionic/react';
 import { MapPin, Navigation, Utensils, Apple, Croissant, Bell } from 'lucide-react';
 import CustomerHeader from './CustomerHeader';
+import PageShell from './PageShell';
 import DynamicIsland from './ui/calamansi/dynamic-island';
 
 export default function MapPage({ userProfile }) {
@@ -11,6 +13,7 @@ export default function MapPage({ userProfile }) {
     { title: "Zero Waste", desc: "142 kg CO₂ prevented this week!", color: "text-emerald-800" },
   ];
   const [updateIdx, setUpdateIdx] = useState(0);
+  const [isCentered, setIsCentered] = useState(false);
 
   useEffect(() => {
     const int = setInterval(() => {
@@ -22,7 +25,8 @@ export default function MapPage({ userProfile }) {
   const currentUpdate = updates[updateIdx];
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-24 relative">
+    <PageShell>
+      <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-24 relative">
       <CustomerHeader active="map" userProfile={userProfile} />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
@@ -63,10 +67,16 @@ export default function MapPage({ userProfile }) {
             </div>
           </div>
 
-          <button className="px-4 py-2 bg-white border border-[#2a382e]/20 text-[#182019] rounded-2xl text-xs font-bold hover:bg-black/5 shadow-2xs transition-colors self-start sm:self-auto flex items-center gap-1.5">
+          <IonButton
+            type="button"
+            onClick={() => setIsCentered(true)}
+            aria-pressed={isCentered}
+            fill="outline"
+            className="map-center-button self-start sm:self-auto text-xs font-bold"
+          >
             <Navigation size={13} className="text-[#2c8a38]" />
-            <span>Center on Campus</span>
-          </button>
+            <span>{isCentered ? 'Campus Centered' : 'Center on Campus'}</span>
+          </IonButton>
         </div>
 
         {/* Map Canvas with Calamansi Squircles */}
@@ -137,6 +147,7 @@ export default function MapPage({ userProfile }) {
       </main>
 
       
-    </div>
+      </div>
+    </PageShell>
   );
 }

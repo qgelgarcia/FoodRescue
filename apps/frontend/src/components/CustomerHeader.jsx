@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
+import { IonHeader } from '@ionic/react';
 import { 
   Leaf, 
   Ticket,
@@ -44,7 +45,7 @@ export default function CustomerHeader({ active, userProfile }) {
 
   return (
     <>
-      <div className="w-full border-b border-[#2a382e]/10 bg-white/95 backdrop-blur-md sticky top-0 z-40">
+      <IonHeader className="w-full border-b border-[#2a382e]/10 bg-white/95 backdrop-blur-md sticky top-0 z-40">
         
 
 
@@ -52,8 +53,10 @@ export default function CustomerHeader({ active, userProfile }) {
         <header className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
           
           {/* Brand */}
-          <div 
-            className="flex items-center gap-2.5 cursor-pointer group select-none shrink-0"
+          <button
+            type="button"
+            aria-label="Go to the FoodRescue home feed"
+            className="flex items-center gap-2.5 cursor-pointer group select-none shrink-0 border-0 bg-transparent p-0 text-left"
             onClick={() => history.push('/app/home-feed')}
           >
             <div className="size-9 rounded-2xl bg-[#2c8a38] text-white flex items-center justify-center font-bold text-lg shadow-sm group-hover:scale-105 transition-transform">
@@ -62,7 +65,7 @@ export default function CustomerHeader({ active, userProfile }) {
             <div className="font-['Space_Grotesk'] text-xl font-bold tracking-tight text-[#182019]">
               Food<span className="text-[#2c8a38]">Rescue</span>
             </div>
-          </div>
+          </button>
 
           <div className="flex items-center gap-3 sm:gap-4">
             {/* Active Pickup Capsule */}
@@ -79,9 +82,11 @@ export default function CustomerHeader({ active, userProfile }) {
             )}
 
             {/* Profile Pill */}
-            <div 
+            <button
+              type="button"
+              aria-label="Open profile"
               onClick={() => history.push('/app/profile')}
-              className="flex items-center gap-2 pl-2 sm:pl-3 py-1 cursor-pointer border-l border-[#2a382e]/10 hover:opacity-85 transition-opacity shrink-0"
+              className="flex items-center gap-2 pl-2 sm:pl-3 py-1 cursor-pointer border-0 border-l border-[#2a382e]/10 hover:opacity-85 transition-opacity shrink-0 bg-transparent"
             >
               {userProfile?.avatar_url ? (
                 <img 
@@ -94,11 +99,11 @@ export default function CustomerHeader({ active, userProfile }) {
                   {(userProfile?.full_name || 'U')[0].toUpperCase()}
                 </div>
               )}
-            </div>
+            </button>
           </div>
 
         </header>
-      </div>
+      </IonHeader>
 
       {/* Centered Modal for Active Pickup */}
       <AnimatePresence>

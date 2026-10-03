@@ -6,7 +6,7 @@ Copy the block below into Antigravity as your project instruction. It references
 
 ```
 You are building "FoodRescue" — a mobile surplus food sharing and claiming app,
-with a web-facing admin panel built from the SAME Ionic (Angular) codebase.
+with a web-facing admin panel built from the SAME Ionic React codebase.
 
 CONTEXT FILES (read these first, in this order, before writing any code):
 1. Specs_FoodRescue.md        — functional & non-functional requirements
@@ -18,27 +18,26 @@ CONTEXT FILES (read these first, in this order, before writing any code):
 7. Phases_FoodRescue.md       — the build order to follow
 
 STACK (do not substitute unless asked):
-- Frontend: Ionic Framework + Angular
-- Backend: Supabase (Postgres, Auth, Realtime, Storage, Edge Functions/Cron) — NO custom Express/Node API server
-- Maps: Leaflet.js + OpenStreetMap tiles
-- Push notifications: Firebase Cloud Messaging
-- Data access: supabase-js client called directly from Angular services; authorization enforced via Postgres Row Level Security, not just client-side guards
+- Frontend: Ionic React + Vite + React Router
+- Backend: Supabase (Postgres, Auth, Storage, RPC) plus the Express TypeScript health service in `apps/backend`
+- Maps: CSS-based campus map prototype in `apps/frontend/src/components/MapPage.jsx`
+- Notifications: in-app claim/pickup feedback; push notifications are a future phase
+- Data access: `supabase-js` client called directly from React service modules; authorization enforced via Postgres Row Level Security, not just client-side guards
 
 PROJECT STRUCTURE TO CREATE:
 foodrescue-app/
-  src/app/modules/auth/           (shared: login, register, role redirect)
-  src/app/modules/user/           (mobile-first: home-feed, map-view, create-post,
-                                    my-posts, claim-food, my-claims, notifications, profile)
-  src/app/modules/admin/          (web-first: dashboard, user-management, post-moderation,
-                                    reports-queue, claims-monitor, broadcast, activity-logs)
-  src/app/guards/                 (auth.guard.ts, role.guard.ts)
-  src/app/services/               (supabase.service.ts, posts.service.ts, claims.service.ts,
-                                    notifications.service.ts, admin.service.ts)
-  src/theme/                      (variables.scss for mobile, admin.scss for wider layouts)
+  apps/frontend/src/components/  (user screens, shared components, UI effects)
+  apps/frontend/src/modules/     (auth and admin modules)
+  apps/frontend/src/guards/      (AuthGuard.jsx, RoleGuard.jsx)
+  apps/frontend/src/services/    (supabase.js, auth.js, food.js)
+  apps/frontend/src/styles.css   (theme tokens and shared styles)
+  apps/backend/src/              (Express server and health route)
+  packages/shared/src/            (TypeScript domain interfaces)
+  supabase/migrations/            (schema, RLS, RPC, and storage policies)
 
 ROUTING RULES:
 - "/login" is shared.
-- "/app/*" is the mobile module, guarded by AuthGuard, uses ion-tabs.
+- "/app/*" is the mobile-first module, guarded by AuthGuard, and uses the React floating dock.
 - "/admin/*" is the admin module, guarded by AuthGuard + RoleGuard (role must equal 'admin'),
   uses ion-split-pane + ion-menu for desktop-style navigation.
 - After login, check profiles.role: 'admin' -> redirect to /admin/dashboard,
@@ -60,8 +59,8 @@ NON-NEGOTIABLE IMPLEMENTATION DETAILS:
 3. Post expiration is handled by the pg_cron scheduled job, not by client-side date filtering
    alone. The feed's "is this post still active" check should always rely on the `status`
    column, which the cron job keeps in sync with `expires_at`.
-4. Use Supabase Realtime (postgres_changes) subscriptions on `food_posts` and `claims` so the
-   feed, countdown, and quantity-remaining UI update live without manual refresh or polling.
+4. Use Supabase Realtime (postgres_changes) subscriptions on `food_posts` and `claims` when
+   the live-data phase is implemented; the current demo uses local claim events.
 5. All admin actions that change another user's/post's state (ban, remove post, resolve
    report) must write a row to `admin_logs` in the same operation.
 6. Enforce every rule listed in Rules_FoodRescue.md — treat that file as the acceptance

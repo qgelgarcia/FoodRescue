@@ -29,4 +29,10 @@ From the repository root:
 - `npm run build:frontend` — Builds the frontend for production.
 - `npm run build:backend` — Compiles the backend TypeScript into `dist/`.
 - `npm run build:shared` — Compiles the shared TypeScript types.
+- `npm test` — Runs the validation tests for food posts and claims.
 - `npm run start:backend` — Runs the compiled backend server.
+
+## Code Reading Guides
+
+- `docs/Professor_Code_Walkthrough.md` — Framework locations, Ionic card usage, React components, `className`, and data flow.
+- `docs/Rubric_Audit.md` — Evidence-based checklist audit, including manual items that still require device or presentation testing.

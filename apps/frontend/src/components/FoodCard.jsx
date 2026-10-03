@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
+import { IonCard } from '@ionic/react';
 import { Clock, MapPin, Check, Plus, Minus, ChevronRight, ChevronLeft, X, Info } from 'lucide-react';
 import { TiltCard } from '../components/ui/calamansi/tilt-card';
 import { NumberTicker } from '../components/ui/calamansi/number-ticker';
 import { claimFoodPost } from '../services/food';
+import { validateClaimQuantity } from '../lib/validation';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function CalamansiFoodCard({ post, onClaimSuccess }) {
   const [portion, setPortion] = useState(1);
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimedNotice, setClaimedNotice] = useState(false);
+  const [claimError, setClaimError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [photoDirection, setPhotoDirection] = useState(1);
@@ -43,7 +46,14 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
 
   async function handleClaim(e) {
     e.stopPropagation();
+    const validationError = validateClaimQuantity(post, portion);
+    if (validationError) {
+      setClaimError(validationError);
+      return;
+    }
+
     setIsClaiming(true);
+    setClaimError('');
     try {
       const claim = await claimFoodPost(post, portion);
       setClaimedNotice(true);
@@ -52,8 +62,8 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
         setClaimedNotice(false);
         setIsModalOpen(false);
       }, 3000);
-    } catch {
-      // handled
+    } catch (error) {
+      setClaimError(error.message || 'We could not complete that claim. Please try again.');
     } finally {
       setIsClaiming(false);
     }
@@ -79,14 +89,15 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
   return (
     <>
       <div className="relative group">
-        <TiltCard
-          maxTilt={8}
-          hoverScale={1.02}
-          variant="white"
-          badge={badgeComponent}
-          onClick={() => setIsModalOpen(true)}
-          className="rounded-3xl shadow-md hover:shadow-xl border border-[#2a382e]/10 overflow-hidden text-[#182019] bg-white transition-shadow cursor-pointer"
-        >
+        <IonCard className="food-card-ion">
+          <TiltCard
+            maxTilt={8}
+            hoverScale={1.02}
+            variant="white"
+            badge={badgeComponent}
+            onClick={() => setIsModalOpen(true)}
+            className="rounded-3xl shadow-md hover:shadow-xl border border-[#2a382e]/10 overflow-hidden text-[#182019] bg-white transition-shadow cursor-pointer"
+          >
           {/* Cover Photo */}
           <div className="relative h-48 -mx-5 -mt-5 mb-5 overflow-hidden rounded-t-3xl bg-neutral-100">
             <img
@@ -151,6 +162,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
               <div className="flex items-center gap-2 bg-[#f0f6ed] p-1.5 rounded-2xl border border-[#2a382e]/10 shadow-sm">
                 <button
                   type="button"
+                  aria-label={`Decrease portions for ${post.food_name}`}
                   onClick={(e) => { e.stopPropagation(); setPortion(Math.max(1, portion - 1)); }}
                   className="size-8 rounded-xl bg-white hover:bg-emerald-100 flex items-center justify-center text-sm font-bold text-[#182019] shadow-sm transition-colors"
                 >
@@ -168,6 +180,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
 
                 <button
                   type="button"
+                  aria-label={`Increase portions for ${post.food_name}`}
                   onClick={(e) => { e.stopPropagation(); setPortion(Math.min(post.quantity_remaining || 5, portion + 1)); }}
                   className="size-8 rounded-xl bg-white hover:bg-emerald-100 flex items-center justify-center text-sm font-bold text-[#182019] shadow-sm transition-colors"
                 >
@@ -201,8 +214,10 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
                 )}
               </button>
             </div>
+            {claimError && <p className="mt-3 text-xs font-semibold text-rose-700" role="alert">{claimError}</p>}
           </div>
-        </TiltCard>
+          </TiltCard>
+        </IonCard>
       </div>
 
       {/* Expanded Details Modal */}
@@ -239,21 +254,27 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
                 </AnimatePresence>
                 
                 {/* Liquid Glass Navigation Buttons */}
-                <button 
-                  onClick={handlePrevPhoto}
+                 <button
+                   type="button"
+                   aria-label={`Previous photo of ${post.food_name}`}
+                   onClick={handlePrevPhoto}
                   className="absolute left-3 top-1/2 -translate-y-1/2 size-9 rounded-full bg-white/15 backdrop-blur-xl border border-white/30 shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] text-white flex items-center justify-center hover:bg-white/25 hover:scale-105 transition-all z-10"
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <button 
-                  onClick={handleNextPhoto}
+                 <button
+                   type="button"
+                   aria-label={`Next photo of ${post.food_name}`}
+                   onClick={handleNextPhoto}
                   className="absolute right-3 top-1/2 -translate-y-1/2 size-9 rounded-full bg-white/15 backdrop-blur-xl border border-white/30 shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] text-white flex items-center justify-center hover:bg-white/25 hover:scale-105 transition-all z-10"
                 >
                   <ChevronRight size={20} />
                 </button>
 
-                <button 
-                  onClick={() => setIsModalOpen(false)}
+                 <button
+                   type="button"
+                   aria-label={`Close details for ${post.food_name}`}
+                   onClick={() => setIsModalOpen(false)}
                   className="absolute top-4 right-4 size-8 rounded-full bg-white/15 backdrop-blur-xl border border-white/30 shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] text-white flex items-center justify-center hover:bg-white/25 hover:scale-105 transition-all z-10"
                 >
                   <X size={16} />

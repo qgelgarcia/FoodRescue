@@ -28,6 +28,7 @@ export default function FloatingBottomDock({ active }) {
         <Dock reach={110} size={42} magnify={54}>
           <DockItem
             active={active === 'home'}
+            ariaLabel="Home feed"
             onClick={() => handleNav('home', '/app/home-feed')}
           >
             <Home size={22} strokeWidth={active === 'home' ? 2.5 : 2} />
@@ -35,6 +36,7 @@ export default function FloatingBottomDock({ active }) {
 
           <DockItem
             active={active === 'map'}
+            ariaLabel="Pickup map"
             onClick={() => handleNav('map', '/app/map')}
           >
             <Compass size={22} strokeWidth={active === 'map' ? 2.5 : 2} />
@@ -42,6 +44,7 @@ export default function FloatingBottomDock({ active }) {
 
           <DockItem
             active={active === 'post'}
+            ariaLabel="Post surplus food"
             onClick={() => handleNav('post', '/app/post')}
           >
             <Plus size={22} strokeWidth={active === 'post' ? 2.5 : 2} />
@@ -49,6 +52,7 @@ export default function FloatingBottomDock({ active }) {
 
           <DockItem
             active={active === 'history'}
+            ariaLabel="Claim history"
             onClick={() => handleNav('history', '/app/history')}
           >
             <div className="relative flex items-center justify-center">
@@ -61,6 +65,7 @@ export default function FloatingBottomDock({ active }) {
 
           <DockItem
             active={active === 'profile'}
+            ariaLabel="Profile"
             onClick={() => handleNav('profile', '/app/profile')}
           >
             <div className="relative flex items-center justify-center">

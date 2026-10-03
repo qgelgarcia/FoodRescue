@@ -97,14 +97,16 @@ export async function login(email, password) {
 export async function register({ email, password, fullName, phone, role = 'student' }) {
   const cleanEmail = (email || '').trim().toLowerCase();
   const cleanName = (fullName || '').trim();
+  const safeRole = ['student', 'org', 'provider'].includes(role) ? role : 'student';
+  const cleanPhone = (phone || '').trim();
 
   if (!isSupabaseConfigured()) {
     const user = {
       id: 'demo-' + Date.now(),
       email: cleanEmail,
       full_name: cleanName,
-      phone: phone || '',
-      role,
+      phone: cleanPhone,
+      role: safeRole,
       status: 'active'
     };
     localStorage.setItem('foodrescue_demo_user', JSON.stringify(user));
@@ -117,8 +119,8 @@ export async function register({ email, password, fullName, phone, role = 'stude
     options: {
       data: {
         full_name: cleanName,
-        phone: (phone || '').trim(),
-        role
+        phone: cleanPhone,
+        role: safeRole
       }
     }
   });
@@ -137,8 +139,8 @@ export async function register({ email, password, fullName, phone, role = 'stude
   const profile = {
     id: data.user?.id,
     full_name: cleanName,
-    phone: phone || '',
-    role,
+    phone: cleanPhone,
+    role: safeRole,
     status: 'active'
   };
 
