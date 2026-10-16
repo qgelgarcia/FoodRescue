@@ -1,72 +1,7 @@
+import { DEFAULT_POSTS } from './sample-food';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { readStoredArray, validateClaimQuantity } from '../lib/validation';
 
-const DEFAULT_POSTS = [
-  {
-    id: 'post-1',
-    food_name: 'Assorted Cafe Sandwiches',
-    description: 'Freshly prepared artisan turkey & pesto, mozzarella tomato, and roast beef ciabatta sandwiches from lunch catering.',
-    category: 'Meals',
-    quantity_total: 10,
-    quantity_remaining: 4,
-    pickup_address: 'Main Library Cafe, Ground Floor',
-    pickup_lat: 37.7749,
-    pickup_lng: -122.4194,
-    photo_url: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=800&q=80',
-    expires_at: new Date(Date.now() + 2 * 3600 * 1000 + 45 * 60 * 1000).toISOString(),
-    status: 'active',
-    dietary: ['Vegetarian Option', 'Halal'],
-    donor: { full_name: 'Campus Dining Services' }
-  },
-  {
-    id: 'post-2',
-    food_name: 'Fresh Organic Fruit Bowls',
-    description: 'Crisp sliced melons, berries, pineapples and whole apples packed in compostable sealed containers.',
-    category: 'Produce',
-    quantity_total: 15,
-    quantity_remaining: 12,
-    pickup_address: 'Student Union Pantry, Room 104',
-    pickup_lat: 37.7752,
-    pickup_lng: -122.4182,
-    photo_url: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&w=800&q=80',
-    expires_at: new Date(Date.now() + 4 * 3600 * 1000 + 15 * 60 * 1000).toISOString(),
-    status: 'active',
-    dietary: ['Vegan', 'Gluten-Free'],
-    donor: { full_name: 'Green Earth Pantry' }
-  },
-  {
-    id: 'post-3',
-    food_name: 'Warm Artisan Croissants & Danishes',
-    description: 'Freshly baked butter croissants, chocolate pain au chocolat, and almond pastries from morning service.',
-    category: 'Bakery',
-    quantity_total: 18,
-    quantity_remaining: 6,
-    pickup_address: 'North Quad Espresso Bar',
-    pickup_lat: 37.7760,
-    pickup_lng: -122.4170,
-    photo_url: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=800&q=80',
-    expires_at: new Date(Date.now() + 1 * 3600 * 1000 + 10 * 60 * 1000).toISOString(),
-    status: 'active',
-    dietary: ['Vegetarian'],
-    donor: { full_name: 'Campus Bakery' }
-  },
-  {
-    id: 'post-4',
-    food_name: 'Hearty Vegan Grain Bowls',
-    description: 'Quinoa, roasted sweet potatoes, kale, chickpeas and creamy tahini dressing. High protein and ready to eat.',
-    category: 'Meals',
-    quantity_total: 8,
-    quantity_remaining: 3,
-    pickup_address: 'Athletic Center Fuel Station',
-    pickup_lat: 37.7738,
-    pickup_lng: -122.4210,
-    photo_url: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80',
-    expires_at: new Date(Date.now() + 55 * 60 * 1000).toISOString(),
-    status: 'active',
-    dietary: ['Vegan', 'Gluten-Free', 'High-Protein'],
-    donor: { full_name: 'Athletics Nutrition' }
-  }
-];
 
 const LOCAL_STORAGE_CLAIMS_KEY = 'foodrescue_claims_v1';
 const LOCAL_STORAGE_POSTS_KEY = 'foodrescue_local_posts_v1';
@@ -86,19 +21,14 @@ function readStoredObject(key) {
  */
 export async function getFoodPosts() {
   if (isSupabaseConfigured()) {
-    try {
-      const { data, error } = await supabase
-        .from('food_posts')
-        .select('*, donor:donor_id(full_name, phone)')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-
-      if (!error && data && data.length > 0) {
-        return data;
-      }
-    } catch {
-      // fallback to mock posts
-    }
+    const { data, error } = await supabase
+      .from('food_posts')
+      .select('*, donor:donor_id(full_name, phone)')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    if (!Array.isArray(data)) throw new Error('bad response');
+    if (data.length > 0 || !import.meta.env.DEV) return data;
   }
 
   // Load any locally created posts merged with defaults
@@ -184,7 +114,7 @@ export async function claimFoodPost(post, portionCount = 1) {
   const validationError = validateClaimQuantity(post, portionCount);
   if (validationError) throw new Error(validationError);
 
-  if (isSupabaseConfigured()) {
+  if (isSupabaseConfigured() && !post.is_sample) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) throw new Error('Please sign in before claiming food.');
 
@@ -209,6 +139,7 @@ export async function claimFoodPost(post, portionCount = 1) {
     claimed_at: new Date().toISOString(),
     expires_at: post.expires_at,
     status: 'ready_for_pickup', // ready_for_pickup -> picked_up -> completed
+    is_sample: Boolean(post.is_sample),
     image: post.photo_url
   };
 

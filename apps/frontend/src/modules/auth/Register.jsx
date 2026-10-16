@@ -1,3 +1,8 @@
+import PasswordInput from '../../components/auth/PasswordInput';
+import PhoneInput from '../../components/auth/PhoneInput';
+import { phoneCountry as getPhoneCountry } from '../../lib/account-inputs';
+import { useAccountFields } from './useAccountFields';
+import { friendlyError } from '../../services/request';
 import React, { useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import { register, signInWithGoogle } from '../../services/auth';
@@ -9,32 +14,23 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState('PH');
   const [role, setRole] = useState('student');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
 
-  function getPasswordStrength(pwd) {
-    if (!pwd) return { score: 0, text: '', color: '' };
-    let score = 0;
-    if (pwd.length >= 8) score++;
-    if (pwd.length >= 12) score++;
-    if (/[A-Z]/.test(pwd)) score++;
-    if (/[0-9]/.test(pwd)) score++;
-    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  const { field, message, valid } = useAccountFields({ email, password, fullName, phone, phoneCountry, confirmPassword, role }, true);
 
-    if (score <= 2) return { score: 1, text: 'Weak', color: '#ef4444' };
-    if (score <= 4) return { score: 2, text: 'Medium', color: '#f59e0b' };
-    return { score: 3, text: 'Strong', color: '#22c55e' };
-  }
+
 
   async function handleRegister(e) {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
+    if (loading || oauthLoading || !valid) return;
     const cleanEmail = email.trim();
     const cleanName = fullName.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -59,10 +55,6 @@ export default function Register() {
       return;
     }
 
-    if (phone && !/^[0-9+()\-\s]{7,20}$/.test(phone.trim())) {
-      setError('Please provide a valid phone number or leave it blank.');
-      return;
-    }
 
     setLoading(true);
 
@@ -71,7 +63,7 @@ export default function Register() {
         fullName: cleanName,
         email: cleanEmail,
         password,
-        phone,
+        phone: phone ? `${getPhoneCountry(phoneCountry).code}${phone}` : '',
         role
       });
 
@@ -91,7 +83,7 @@ export default function Register() {
         }, 1000);
       }
     } catch (ex) {
-      setError(ex.message || 'Registration failed');
+      setError(friendlyError(ex));
     } finally {
       setLoading(false);
     }
@@ -99,6 +91,7 @@ export default function Register() {
 
   async function handleGoogleAuth() {
     setError('');
+    if (loading || oauthLoading) return;
     setOauthLoading(true);
     try {
       const { error: err } = await signInWithGoogle();
@@ -106,13 +99,12 @@ export default function Register() {
         setError(err);
       }
     } catch (ex) {
-      setError(ex.message || 'Failed to initialize Google authentication.');
+      setError(friendlyError(ex));
     } finally {
       setOauthLoading(false);
     }
   }
 
-  const pwdStrength = getPasswordStrength(password);
 
   return (
     <div className="auth-container">
@@ -156,14 +148,15 @@ export default function Register() {
           <span>Sign up with Google</span>
         </button>
 
+        <p role="status" aria-live="polite">{oauthLoading ? 'Connecting to Google…' : loading ? 'Please wait while we complete your request…' : ''}</p>
         <div className="auth-divider">
           <span>or sign up with email</span>
         </div>
 
-        <form onSubmit={handleRegister}>
+        <form onSubmit={handleRegister} noValidate aria-busy={loading}>
           <label>
             Full Name <span className="req">*</span>
-            <input
+            <input {...field('fullName')}
               type="text"
               required
               placeholder="e.g. Jordan Smith"
@@ -172,11 +165,12 @@ export default function Register() {
               onChange={(e) => setFullName(e.target.value)}
               autoComplete="name"
             />
+              {message('fullName')}
           </label>
 
           <label>
             Email Address <span className="req">*</span>
-            <input
+            <input {...field('email')}
               type="email"
               required
               placeholder="e.g. jsmith@campus.edu"
@@ -185,46 +179,15 @@ export default function Register() {
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
             />
+              {message('email')}
           </label>
 
-          <label>
-            <div className="label-header">
-              <span>Password (min 8 characters) <span className="req">*</span></span>
-              <button
-                type="button"
-                className="btn-toggle-eye"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex="-1"
-              >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
-            </div>
-            <input
-              type={showPassword ? 'text' : 'password'}
-              required
-              minLength={8}
-              placeholder="••••••••"
-              value={password}
-              disabled={loading}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </label>
-
-          {password.length > 0 && (
-            <div className="pwd-meter-box">
-              <div className="pwd-bars">
-                <div className={`bar ${pwdStrength.score >= 1 ? 'active' : ''}`} style={{ backgroundColor: pwdStrength.score >= 1 ? pwdStrength.color : '' }}></div>
-                <div className={`bar ${pwdStrength.score >= 2 ? 'active' : ''}`} style={{ backgroundColor: pwdStrength.score >= 2 ? pwdStrength.color : '' }}></div>
-                <div className={`bar ${pwdStrength.score >= 3 ? 'active' : ''}`} style={{ backgroundColor: pwdStrength.score >= 3 ? pwdStrength.color : '' }}></div>
-              </div>
-              <small style={{ color: pwdStrength.color }}>Strength: {pwdStrength.text}</small>
-            </div>
-          )}
+          <PasswordInput value={password} onChange={event => setPassword(event.target.value)} signup={true}
+            inputProps={field('password')} error={message('password')} disabled={loading || oauthLoading} />
 
           <label>
             Confirm Password <span className="req">*</span>
-            <input
+            <input {...field('confirmPassword')}
               type="password"
               required
               placeholder="Repeat password"
@@ -233,19 +196,11 @@ export default function Register() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               autoComplete="new-password"
             />
+              {message('confirmPassword')}
           </label>
 
-          <label>
-            Phone Number (Optional)
-            <input
-              type="tel"
-              placeholder="e.g. 555-0123"
-              value={phone}
-              disabled={loading}
-              onChange={(e) => setPhone(e.target.value)}
-              autoComplete="tel"
-            />
-          </label>
+          <PhoneInput value={phone} onChange={setPhone} countryId={phoneCountry} onCountryChange={setPhoneCountry}
+                inputProps={field('phone')} error={message('phone')} disabled={loading || oauthLoading} />
 
           <label>
             Campus Role <span className="req">*</span>
@@ -256,7 +211,7 @@ export default function Register() {
             </select>
           </label>
 
-          <button type="submit" disabled={loading || oauthLoading} className="btn-primary">
+          <button type="submit" disabled={!valid || loading || oauthLoading} className="btn-primary">
             {loading ? (
               <span className="btn-spinner-content">
                 <span className="spinner-sm"></span> Creating Account...

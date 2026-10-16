@@ -1,12 +1,12 @@
+import { friendlyError } from '../../services/request';
 import React, { useState } from 'react';
-import { IonButton, IonSelect, IonSelectOption } from '@ionic/react';
 import { PlusCircle, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Camera, X } from 'lucide-react';
-import CustomerHeader from './CustomerHeader';
-import PageShell from './PageShell';
+import CustomerHeader from '../../components/layout/CustomerHeader';
+import PageShell from '../../components/layout/PageShell';
 
-import { DurationPicker } from './ui/calamansi/duration-picker';
-import { createFoodPost } from '../services/food';
-import { validateFoodPostDraft } from '../lib/validation';
+import { DurationPicker } from '../../components/ui/calamansi/duration-picker';
+import { createFoodPost } from '../../services/food';
+import { validateFoodPostDraft } from '../../lib/validation';
 
 export default function PostPage({ userProfile }) {
   const [foodName, setFoodName] = useState('');
@@ -56,6 +56,7 @@ export default function PostPage({ userProfile }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (loading) return;
     const validation = validateFoodPostDraft({
       foodName,
       description,
@@ -99,7 +100,7 @@ export default function PostPage({ userProfile }) {
       setDuration({ hours: 3, minutes: 0 });
       setFieldErrors({});
     } catch (error) {
-      setFormError(error.message || 'The listing could not be published. Please try again.');
+      setFormError(friendlyError(error));
     } finally {
       setLoading(false);
     }
@@ -107,7 +108,7 @@ export default function PostPage({ userProfile }) {
 
   return (
     <PageShell>
-      <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
+      <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
       <CustomerHeader active="post" userProfile={userProfile} />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
@@ -149,7 +150,12 @@ export default function PostPage({ userProfile }) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           {/* Main Form */}
-          <form onSubmit={handleSubmit} className="md:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/15 shadow-sm space-y-5">
+          <form noValidate onBlurCapture={(event) => {
+            const key = { 'food-name': 'foodName', 'food-description': 'description', 'food-quantity': 'quantity', 'pickup-address': 'pickupAddress', 'food-category': 'category', 'photo-upload': 'photos' }[event.target.id];
+            if (!key) return;
+            const errors = validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, photos }).errors;
+            setFieldErrors(previous => ({ ...previous, [key]: errors[key] }));
+          }} aria-busy={loading} onSubmit={handleSubmit} className="md:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/15 shadow-sm space-y-5">
             
             <div>
               <label htmlFor="food-name" className="block text-xs font-bold text-[#182019] mb-1.5">
@@ -157,7 +163,7 @@ export default function PostPage({ userProfile }) {
               </label>
               <input
                 type="text"
-                id="food-name"
+                id="food-name" maxLength={120}
                 required
                 value={foodName}
                 onChange={(e) => { setFoodName(e.target.value); clearFieldError('foodName'); }}
@@ -222,21 +228,20 @@ export default function PostPage({ userProfile }) {
                 <label htmlFor="food-category" className="block text-xs font-bold text-[#182019] mb-1.5">
                   Category <span className="text-rose-500">*</span>
                 </label>
-                <IonSelect
+                <select
                   required
                   id="food-category"
                   value={category}
-                  onIonChange={(e) => { setCategory(e.detail.value); clearFieldError('category'); }}
+                  onChange={(e) => { setCategory(e.target.value); clearFieldError('category'); }}
                   aria-invalid={Boolean(fieldErrors.category)}
                   aria-label="Food category"
-                  interface="popover"
-                  className="w-full bg-[#fbfdf8] border border-[#2a382e]/20 rounded-2xl px-3 py-2.5 text-xs text-[#182019]"
+                  className="food-category-select"
                 >
-                  <IonSelectOption value="Meals">Meals (Prepared)</IonSelectOption>
-                  <IonSelectOption value="Produce">Produce / Fresh Fruit</IonSelectOption>
-                  <IonSelectOption value="Bakery">Bakery & Pastries</IonSelectOption>
-                  <IonSelectOption value="Snacks">Packaged Snacks</IonSelectOption>
-                </IonSelect>
+                  <option value="Meals">Meals (Prepared)</option>
+                  <option value="Produce">Produce / Fresh Fruit</option>
+                  <option value="Bakery">Bakery & Pastries</option>
+                  <option value="Snacks">Packaged Snacks</option>
+                </select>
                 {fieldErrors.category && <p className="mt-1 text-xs text-rose-700">{fieldErrors.category}</p>}
               </div>
 
@@ -265,7 +270,7 @@ export default function PostPage({ userProfile }) {
               </label>
               <input
                 type="text"
-                id="pickup-address"
+                id="pickup-address" maxLength={240}
                 required
                 value={pickupAddress}
                 onChange={(e) => { setPickupAddress(e.target.value); clearFieldError('pickupAddress'); }}
@@ -310,7 +315,7 @@ export default function PostPage({ userProfile }) {
               </label>
               <textarea
                 required
-                id="food-description"
+                id="food-description" maxLength={1000}
                 rows="3"
                 value={description}
                 onChange={(e) => { setDescription(e.target.value); clearFieldError('description'); }}
@@ -321,14 +326,13 @@ export default function PostPage({ userProfile }) {
               {fieldErrors.description && <p className="mt-1 text-xs text-rose-700">{fieldErrors.description}</p>}
             </div>
 
-            <IonButton
+            <button
               type="submit"
-              disabled={loading}
-              expand="block"
-              className="post-submit-ionic w-full mt-4 font-extrabold text-[15px] shadow-lg transition-all tracking-wide"
+              disabled={loading || !validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, photos }).isValid}
+              className="bg-gradient-to-b from-[#2c8a38] to-[#1c6428] text-white rounded-2xl py-4 px-6 w-full mt-4 font-extrabold text-[15px] shadow-lg transition-all tracking-wide"
             >
               {loading ? 'Publishing Food Drop...' : 'Publish Food Drop Live'}
-            </IonButton>
+            </button>
 
           </form>
 

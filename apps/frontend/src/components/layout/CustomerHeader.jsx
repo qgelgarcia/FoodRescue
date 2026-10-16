@@ -11,10 +11,10 @@ import {
   TrendingUp,
   X
 } from 'lucide-react';
-import { Marquee } from './ui/calamansi/marquee';
+import { Marquee } from '../ui/calamansi/marquee';
 import { motion, AnimatePresence } from 'motion/react';
 
-import { getActiveClaims, completeClaim } from '../services/food';
+import { getActiveClaims, completeClaim } from '../../services/food';
 
 export default function CustomerHeader({ active, userProfile }) {
   const history = useHistory();

@@ -1,3 +1,4 @@
+import { PASSWORD_REQUIREMENTS, phoneCountry } from './account-inputs.js';
 const FOOD_CATEGORIES = new Set(['Meals', 'Produce', 'Bakery', 'Snacks']);
 
 export function validateFoodPostDraft({
@@ -90,4 +91,19 @@ export function readStoredArray(key) {
   } catch {
     return [];
   }
+}
+
+export function validateAccount({ email = '', password = '', fullName = '', phone = '', confirmPassword = '', role = 'student', phoneCountry: countryId = 'PH' }, signup = false) {
+  const errors = {};
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || email.trim().length > 254) errors.email = 'Enter a valid email address.';
+  if (password.length < (signup ? 8 : 1) || password.length > 128) errors.password = signup ? 'Use 8 to 128 characters for your password.' : 'Enter your password (up to 128 characters).';
+  if (signup) {
+    if (PASSWORD_REQUIREMENTS.some(rule => !rule.regex.test(password))) errors.password = 'Please meet all the password requirements below.';
+    if (fullName.trim().length < 2 || fullName.trim().length > 80) errors.fullName = 'Enter your name using 2 to 80 characters.';
+    if (password !== confirmPassword || !confirmPassword) errors.confirmPassword = 'Enter the same password again.';
+    const country = phoneCountry(countryId);
+    if (!country || (phone.trim() && !country.pattern.test(phone))) errors.phone = country ? `Enter a valid ${country.digits}-digit mobile number, or leave it blank.` : 'Choose a phone country.';
+    if (!['student', 'provider', 'org'].includes(role)) errors.role = 'Choose a campus role.';
+  }
+  return errors;
 }

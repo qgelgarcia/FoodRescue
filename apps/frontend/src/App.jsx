@@ -1,3 +1,4 @@
+import BlocksBackground from './components/layout/BlocksBackground';
 import React from 'react';
 import { Redirect, Route, Switch } from 'react-router-dom';
 import Login from './modules/auth/Login';
@@ -8,15 +9,15 @@ import RoleGuard from './guards/RoleGuard';
 
 // Unused legacy components removed to prevent naming conflicts
 
-import HomeFeed from './components/HomeFeed';
-import MapPage from './components/MapPage';
-import PostPage from './components/PostPage';
-import HistoryPage from './components/HistoryPage';
-import ProfilePage from './components/ProfilePage';
+import HomeFeed from './modules/feed/HomeFeed';
+import MapPage from './modules/map/MapPage';
+import PostPage from './modules/post/PostPage';
+import HistoryPage from './modules/history/HistoryPage';
+import ProfilePage from './modules/profile/ProfilePage';
 
 import { AnimatePresence, motion } from 'motion/react';
 import { useLocation } from 'react-router-dom';
-import FloatingBottomDock from './components/FloatingBottomDock';
+import FloatingBottomDock from './components/layout/FloatingBottomDock';
 
 const ADMIN_ROUTES = [
   '/admin/dashboard',
@@ -62,7 +63,7 @@ function UserModuleTabs({ userProfile }) {
   };
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-[#f5faee]">
+    <div className="relative h-screen w-full overflow-hidden">
       <AnimatePresence initial={false} custom={direction}>
         <motion.div
           key={location.pathname}
@@ -101,6 +102,9 @@ function UserModuleTabs({ userProfile }) {
 
 export default function App() {
   return (
+    <div className="app-background-shell">
+      <BlocksBackground />
+      <div className="app-route-content">
     <Switch>
       <Route exact path="/login" component={Login} />
       <Route exact path="/register" component={Register} />
@@ -117,5 +121,7 @@ export default function App() {
       <Route exact path="/"><Redirect to="/login" /></Route>
       <Redirect to="/login" />
     </Switch>
+      </div>
+    </div>
   );
 }

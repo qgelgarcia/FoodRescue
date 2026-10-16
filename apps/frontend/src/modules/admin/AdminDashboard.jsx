@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useHistory, useLocation } from 'react-router-dom';
-import { logout } from '../../services/auth';
+import SignOutButton from '../../components/auth/SignOutButton';
 
 const ADMIN_NAV = [
   { path: '/admin/dashboard', label: 'Dashboard' },
@@ -35,15 +35,11 @@ export default function AdminDashboard({ userProfile }) {
   const [broadcastNotice, setBroadcastNotice] = useState('');
   const activeSection = location.pathname.split('/').pop() || 'dashboard';
 
-  async function handleLogout() {
-    await logout();
-    history.push('/login');
-  }
 
   function handleBroadcast(event) {
     event.preventDefault();
     const message = broadcast.trim();
-    if (!message) return;
+    if (!message || message.length > 1000) return;
 
     setBroadcastNotice('Broadcast prepared for the next notification service step.');
     setBroadcast('');
@@ -144,13 +140,16 @@ export default function AdminDashboard({ userProfile }) {
           <label htmlFor="broadcast-message">Announcement message</label>
           <textarea
             id="broadcast-message"
+            maxLength={1000}
+            aria-describedby="broadcast-help"
             value={broadcast}
             onChange={(event) => setBroadcast(event.target.value)}
             placeholder="Example: The Student Union pantry has fresh produce available."
             rows="5"
             required
           />
-          <button type="submit" className="btn-primary admin-action-button">Prepare Broadcast</button>
+          <small id="broadcast-help">Enter an announcement, up to 1,000 characters.</small>
+          <button type="submit" disabled={!broadcast.trim() || broadcast.trim().length > 1000} className="btn-primary admin-action-button">Prepare Broadcast</button>
         </form>
       </AdminSection>
     );
@@ -189,7 +188,7 @@ export default function AdminDashboard({ userProfile }) {
         </div>
         <div className="admin-user-info">
           <span>{userProfile?.full_name || 'Admin'} ({userProfile?.role || 'admin'})</span>
-          <button type="button" onClick={handleLogout} className="btn-outline-sm">Sign Out</button>
+          <SignOutButton className="btn-outline-sm" />
         </div>
       </header>
 

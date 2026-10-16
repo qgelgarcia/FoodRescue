@@ -1,18 +1,47 @@
-import React, { useState } from 'react';
-import { IonCard } from '@ionic/react';
+import { createPortal } from 'react-dom';
+import { friendlyError } from '../../services/request';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, MapPin, Check, Plus, Minus, ChevronRight, ChevronLeft, X, Info } from 'lucide-react';
-import { TiltCard } from '../components/ui/calamansi/tilt-card';
-import { NumberTicker } from '../components/ui/calamansi/number-ticker';
-import { claimFoodPost } from '../services/food';
-import { validateClaimQuantity } from '../lib/validation';
+import { NumberTicker } from '../ui/calamansi/number-ticker';
+import { claimFoodPost } from '../../services/food';
+import { validateClaimQuantity } from '../../lib/validation';
 import { motion, AnimatePresence } from 'motion/react';
 
-export default function CalamansiFoodCard({ post, onClaimSuccess }) {
+export default function CalamansiFoodCard({ post, onClaimSuccess, previewOpen = false, onPreviewClose }) {
   const [portion, setPortion] = useState(1);
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimedNotice, setClaimedNotice] = useState(false);
   const [claimError, setClaimError] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [localModalOpen, setLocalModalOpen] = useState(false);
+  const isModalOpen = previewOpen || localModalOpen;
+  function setIsModalOpen(open) {
+    setLocalModalOpen(open);
+    if (!open) onPreviewClose?.();
+  }
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.focus();
+    function onKeyDown(event) {
+      if (event.key === 'Escape') setIsModalOpen(false);
+      if (event.key !== 'Tab') return;
+      const controls = dialogRef.current?.querySelectorAll('button:not(:disabled), [href], input, select, textarea, [tabindex="0"]');
+      if (!controls?.length) return;
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+      previousFocus?.focus();
+    };
+  }, [isModalOpen]);
+
   const [photoIndex, setPhotoIndex] = useState(0);
   const [photoDirection, setPhotoDirection] = useState(1);
 
@@ -63,25 +92,18 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
         setIsModalOpen(false);
       }, 3000);
     } catch (error) {
-      setClaimError(error.message || 'We could not complete that claim. Please try again.');
+      setClaimError(friendlyError(error));
     } finally {
       setIsClaiming(false);
     }
   }
 
   const badgeComponent = (
-    <div className="flex items-center gap-2.5">
-      <span className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-[#e8efe2] text-[#1c6428] border border-[#2a382e]/10 shadow-sm">
-        {post.category || 'Surplus'}
-      </span>
-      <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border ${
-        isUrgent 
-          ? 'bg-rose-100 text-rose-800 border-rose-200 animate-pulse' 
-          : isModerate 
-            ? 'bg-amber-100 text-amber-800 border-amber-200' 
-            : 'bg-emerald-100 text-emerald-800 border-emerald-200'
-      }`}>
-        <Clock size={12} /> {hoursLeft > 0 ? `${hoursLeft}h ` : ''}{minsLeft}m left
+    <div className="listing-card-meta">
+      <span className="listing-category">{post.category || 'Surplus'}</span>
+      <span className={`listing-expiry ${isUrgent ? 'is-urgent' : isModerate ? 'is-soon' : ''}`}>
+        <Clock size={14} aria-hidden="true" />
+        {hoursLeft > 0 ? `${hoursLeft}h ` : ''}{minsLeft}m left
       </span>
     </div>
   );
@@ -89,17 +111,10 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
   return (
     <>
       <div className="relative group">
-        <IonCard className="food-card-ion">
-          <TiltCard
-            maxTilt={8}
-            hoverScale={1.02}
-            variant="white"
-            badge={badgeComponent}
-            onClick={() => setIsModalOpen(true)}
-            className="rounded-3xl shadow-md hover:shadow-xl border border-[#2a382e]/10 overflow-hidden text-[#182019] bg-white transition-shadow cursor-pointer"
-          >
+        <article className="listing-card">
+          {badgeComponent}
           {/* Cover Photo */}
-          <div className="relative h-48 -mx-5 -mt-5 mb-5 overflow-hidden rounded-t-3xl bg-neutral-100">
+          <div className="listing-card-photo" role="button" tabIndex={0} aria-label={`View details for ${post.food_name}`} onClick={() => setIsModalOpen(true)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setIsModalOpen(true); } }}>
             <img
               src={post.photo_url}
               alt={post.food_name}
@@ -108,13 +123,13 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             
-            <div className="absolute bottom-4 left-5 right-5 flex items-end justify-between">
+            <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
               <div className="pr-2">
                 <p className="text-xs font-bold text-emerald-300 flex items-center gap-1 mb-1 shadow-sm">
                   <MapPin size={12} /> {post.pickup_address}
                 </p>
                 <h3 className="font-['Space_Grotesk'] text-xl font-extrabold text-white drop-shadow-md leading-tight">
-                  {post.food_name}
+                  {post.food_name}{post.is_sample ? ' (Sample)' : ''}
                 </h3>
               </div>
               <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl text-right border border-white/40 shadow-lg">
@@ -127,7 +142,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
           </div>
 
           {/* Description & Donor Details */}
-          <div className="px-1">
+          <div className="listing-card-body">
             <p className="text-sm text-[#4c5b4f] line-clamp-2 mb-4 leading-relaxed font-medium">
               {post.description}
             </p>
@@ -156,7 +171,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
             </div>
 
             {/* Claim Bar & Calamansi NumberTicker Stepper */}
-            <div className="pt-4 border-t border-[#2a382e]/10 flex items-center justify-between gap-4">
+            <div className="listing-card-actions">
               
               {/* Stepper with NumberTicker */}
               <div className="flex items-center gap-2 bg-[#f0f6ed] p-1.5 rounded-2xl border border-[#2a382e]/10 shadow-sm">
@@ -193,7 +208,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
                 type="button"
                 onClick={handleClaim}
                 disabled={isClaiming || post.quantity_remaining <= 0}
-                className={`flex-1 py-3.5 px-6 rounded-2xl font-extrabold text-[15px] transition-all shadow-md flex items-center justify-center gap-2 ${
+                className={`listing-claim-button flex-1 py-3.5 px-6 rounded-2xl font-extrabold text-[15px] transition-all shadow-md flex items-center justify-center gap-2 ${
                   claimedNotice
                     ? 'bg-emerald-600 text-white'
                     : 'bg-gradient-to-b from-[#2c8a38] to-[#1c6428] hover:from-[#23702d] hover:to-[#164d1f] text-white hover:scale-[1.02] active:scale-[0.98]'
@@ -216,14 +231,13 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
             </div>
             {claimError && <p className="mt-3 text-xs font-semibold text-rose-700" role="alert">{claimError}</p>}
           </div>
-          </TiltCard>
-        </IonCard>
+        </article>
       </div>
 
       {/* Expanded Details Modal */}
-      <AnimatePresence>
+      {createPortal(<AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="food-modal-overlay">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -236,9 +250,11 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 30 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col z-10 border border-[#2a382e]/10"
+              ref={dialogRef}
+              role="dialog" aria-modal="true" aria-label={post.food_name} tabIndex={-1}
+              className="food-modal-panel relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col z-10 border border-[#2a382e]/10"
             >
-              <div className="relative h-56 bg-neutral-100 overflow-hidden group">
+              <div className="relative h-56 shrink-0 bg-neutral-100 overflow-hidden group">
                 <AnimatePresence custom={photoDirection} initial={false}>
                   <motion.img
                     key={photoIndex}
@@ -302,7 +318,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
                 </div>
                 
                 <h2 className="font-['Space_Grotesk'] text-2xl font-extrabold text-[#182019] mb-1">
-                  {post.food_name}
+                  {post.food_name}{post.is_sample ? ' (Sample)' : ''}
                 </h2>
                 <p className="text-sm font-bold text-[#2c8a38] flex items-center gap-1 mb-4">
                   <MapPin size={14} /> {post.pickup_address}
@@ -318,7 +334,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
                   </div>
                   <div>
                     <h4 className="font-bold text-[#182019] text-sm">Pickup Instructions</h4>
-                    <p className="text-xs text-[#4c5b4f] mt-0.5">Show your claim pass at the counter to collect your rescue.</p>
+                    <p className="text-xs text-[#4c5b4f] mt-0.5">{post.is_sample ? 'This is a sample listing. No real pickup is available.' : 'Show your claim pass at the counter to collect your rescue.'}</p>
                   </div>
                 </div>
                 
@@ -344,7 +360,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess }) {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </>
   );
 }

@@ -1,3 +1,8 @@
+import PasswordInput from '../../components/auth/PasswordInput';
+import PhoneInput from '../../components/auth/PhoneInput';
+import { phoneCountry as getPhoneCountry } from '../../lib/account-inputs';
+import { useAccountFields } from './useAccountFields';
+import { friendlyError } from '../../services/request';
 import React, { useState, useEffect, useRef } from 'react';
 import { useHistory, useLocation } from 'react-router-dom';
 import { login, register, signInWithGoogle, getCurrentProfile, onAuthStateChange } from '../../services/auth';
@@ -21,15 +26,17 @@ export default function Login() {
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('student');
   const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState('PH');
 
   // UI & Security Guardrail States
-  const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [activeDemoRole, setActiveDemoRole] = useState('');
+
+  const { field, message, valid } = useAccountFields({ email, password, fullName, phone, phoneCountry, confirmPassword, role }, mode === 'signup');
 
   // Rate Limiting / Lockout Guardrail
   const [lockoutSeconds, setLockoutSeconds] = useState(0);
@@ -96,7 +103,7 @@ export default function Login() {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const errorDesc = hashParams.get('error_description');
       if (errorDesc) {
-        setError(`OAuth Error: ${decodeURIComponent(errorDesc)}`);
+        setError('Google sign-in could not finish. Please try again or sign in with email.');
         // Clean URL hash without refreshing
         window.history.replaceState(null, '', window.location.pathname);
       }
@@ -107,7 +114,7 @@ export default function Login() {
       if (profile) {
         navigateUser(profile);
       }
-    });
+    }).catch(error => setError(friendlyError(error)));
 
     // 3. Listen to auth state transitions (fires when Google OAuth completes)
     const subscription = onAuthStateChange(async (event, session) => {
@@ -171,19 +178,7 @@ export default function Login() {
   }
 
   // Password Strength Calculator Guardrail
-  function getPasswordStrength(pwd) {
-    if (!pwd) return { score: 0, text: '', color: '' };
-    let score = 0;
-    if (pwd.length >= 8) score++;
-    if (pwd.length >= 12) score++;
-    if (/[A-Z]/.test(pwd)) score++;
-    if (/[0-9]/.test(pwd)) score++;
-    if (/[^A-Za-z0-9]/.test(pwd)) score++;
 
-    if (score <= 2) return { score: 1, text: 'Weak', color: '#ef4444' };
-    if (score <= 4) return { score: 2, text: 'Medium', color: '#f59e0b' };
-    return { score: 3, text: 'Strong', color: '#22c55e' };
-  }
 
   // Handle Form Submission (Sign In or Sign Up)
   async function handleSubmit(e) {
@@ -198,7 +193,7 @@ export default function Login() {
     }
 
     // Input Validation Guardrail
-    if (!validateInputs()) return;
+    if (loading || oauthLoading || !valid || !validateInputs()) return;
 
     setLoading(true);
 
@@ -218,7 +213,7 @@ export default function Login() {
           email,
           password,
           fullName,
-          phone,
+          phone: phone ? `${getPhoneCountry(phoneCountry).code}${phone}` : '',
           role
         });
 
@@ -238,7 +233,7 @@ export default function Login() {
         }
       }
     } catch (ex) {
-      setError(ex.message || 'An unexpected error occurred. Please try again.');
+      setError(friendlyError(ex));
     } finally {
       setLoading(false);
     }
@@ -248,19 +243,20 @@ export default function Login() {
   async function handleGoogleAuth() {
     setError('');
     setSuccessMsg('');
+    if (loading || oauthLoading) return;
     setOauthLoading(true);
 
     try {
       const { error: err } = await signInWithGoogle();
       if (err) {
         if (err.includes('provider is not enabled')) {
-          setError('Google Sign-In is not enabled yet in this Supabase project. You can enable it in the Supabase Dashboard under Authentication > Providers.');
+          setError('Google sign-in is unavailable right now. Please sign in with email.');
         } else {
           setError(err);
         }
       }
     } catch (ex) {
-      setError(ex.message || 'Failed to initialize Google authentication.');
+      setError(friendlyError(ex));
     } finally {
       setOauthLoading(false);
     }
@@ -269,14 +265,13 @@ export default function Login() {
   // Quick fill helper for demo accounts
   function fillDemo(demoEmail, demoRole, label) {
     setEmail(demoEmail);
-    setPassword('');
+    setPassword('demo-password');
     setActiveDemoRole(label);
     setMode('signin');
     setError('');
-    setSuccessMsg('Demo email filled. Local demo mode accepts the sign-in without a password.');
+    setSuccessMsg('Demo email filled. Demo details are ready. Select Sign In to continue.');
   }
 
-  const pwdStrength = mode === 'signup' ? getPasswordStrength(password) : null;
 
   return (
     <div className="auth-container">
@@ -350,19 +345,20 @@ export default function Login() {
           <span>{mode === 'signin' ? 'Sign in with Google' : 'Sign up with Google'}</span>
         </button>
 
+        <p role="status" aria-live="polite">{oauthLoading ? 'Connecting to Google…' : loading ? 'Please wait while we complete your request…' : ''}</p>
         <div className="auth-divider">
           <span>or continue with email</span>
         </div>
 
         {/* Credentials Form */}
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} noValidate aria-busy={loading}>
           
           {/* Sign Up Fields: Full Name & Role */}
           {mode === 'signup' && (
             <>
               <label>
                 Full Name <span className="req">*</span>
-                <input
+                <input {...field('fullName')}
                   type="text"
                   required
                   placeholder="e.g. Jordan Smith"
@@ -371,6 +367,7 @@ export default function Login() {
                   onChange={(e) => setFullName(e.target.value)}
                   autoComplete="name"
                 />
+              {message('fullName')}
               </label>
 
               <label>
@@ -386,24 +383,15 @@ export default function Login() {
                 </select>
               </label>
 
-              <label>
-                Phone Number (Optional)
-                <input
-                  type="tel"
-                  placeholder="e.g. 555-0123"
-                  value={phone}
-                  disabled={loading || lockoutSeconds > 0}
-                  onChange={(e) => setPhone(e.target.value)}
-                  autoComplete="tel"
-                />
-              </label>
+              <PhoneInput value={phone} onChange={setPhone} countryId={phoneCountry} onCountryChange={setPhoneCountry}
+                inputProps={field('phone')} error={message('phone')} disabled={loading || oauthLoading} />
             </>
           )}
 
           {/* Email Address */}
           <label>
             Email Address <span className="req">*</span>
-            <input
+            <input {...field('email')}
               type="email"
               required
               placeholder="e.g. user@campus.edu"
@@ -412,44 +400,11 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
             />
+              {message('email')}
           </label>
 
-          {/* Password Field with Show/Hide Toggle */}
-          <label>
-            <div className="label-header">
-              <span>Password <span className="req">*</span></span>
-              <button
-                type="button"
-                className="btn-toggle-eye"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex="-1"
-              >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
-            </div>
-            <input
-              type={showPassword ? 'text' : 'password'}
-              required
-              minLength={mode === 'signup' ? 8 : 1}
-              placeholder={mode === 'signup' ? 'Min. 8 characters' : '••••••••'}
-              value={password}
-              disabled={loading || lockoutSeconds > 0}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            />
-          </label>
-
-          {/* Real-time Password Strength Meter on Sign Up */}
-          {mode === 'signup' && password.length > 0 && (
-            <div className="pwd-meter-box">
-              <div className="pwd-bars">
-                <div className={`bar ${pwdStrength.score >= 1 ? 'active' : ''}`} style={{ backgroundColor: pwdStrength.score >= 1 ? pwdStrength.color : '' }}></div>
-                <div className={`bar ${pwdStrength.score >= 2 ? 'active' : ''}`} style={{ backgroundColor: pwdStrength.score >= 2 ? pwdStrength.color : '' }}></div>
-                <div className={`bar ${pwdStrength.score >= 3 ? 'active' : ''}`} style={{ backgroundColor: pwdStrength.score >= 3 ? pwdStrength.color : '' }}></div>
-              </div>
-              <small style={{ color: pwdStrength.color }}>Strength: {pwdStrength.text}</small>
-            </div>
-          )}
+          <PasswordInput value={password} onChange={event => setPassword(event.target.value)} signup={mode === 'signup'}
+            inputProps={field('password')} error={message('password')} disabled={loading || oauthLoading} />
 
           {/* Confirm Password Field on Sign Up */}
           {mode === 'signup' && (
@@ -460,12 +415,12 @@ export default function Login() {
                   type="button"
                   className="btn-toggle-eye"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  tabIndex="-1"
+                  aria-label="Toggle password visibility"
                 >
                   {showConfirmPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
-              <input
+              <input {...field('confirmPassword')}
                 type={showConfirmPassword ? 'text' : 'password'}
                 required
                 placeholder="Repeat password"
@@ -474,13 +429,14 @@ export default function Login() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
               />
+              {message('confirmPassword')}
             </label>
           )}
 
           {/* Primary Submit Button with Double-Submit Prevention */}
           <button
             type="submit"
-            disabled={loading || oauthLoading || lockoutSeconds > 0}
+            disabled={!valid || loading || oauthLoading || lockoutSeconds > 0}
             className="btn-primary"
           >
             {loading ? (

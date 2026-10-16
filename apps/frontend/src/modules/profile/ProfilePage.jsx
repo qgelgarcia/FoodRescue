@@ -17,12 +17,12 @@ import {
   MessageCircle,
   ChevronRight
 } from 'lucide-react';
-import CustomerHeader from './CustomerHeader';
-import PageShell from './PageShell';
+import CustomerHeader from '../../components/layout/CustomerHeader';
+import PageShell from '../../components/layout/PageShell';
 
-import { NumberTicker } from '../components/ui/calamansi/number-ticker';
-import { logout } from '../services/auth';
-import { getActiveClaims } from '../services/food';
+import { NumberTicker } from '../../components/ui/calamansi/number-ticker';
+import SignOutButton from '../../components/auth/SignOutButton';
+import { getActiveClaims } from '../../services/food';
 
 export default function ProfilePage({ userProfile }) {
   const history = useHistory();
@@ -34,14 +34,10 @@ export default function ProfilePage({ userProfile }) {
   const co2Prevented = (rescuedMeals * 0.45).toFixed(1);
   const wasteDiverted = (rescuedMeals * 1.2).toFixed(1);
 
-  async function handleSignOut() {
-    await logout();
-    history.push('/login');
-  }
 
   return (
     <PageShell>
-      <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
+      <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
       <CustomerHeader active="profile" userProfile={userProfile} />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
@@ -82,14 +78,12 @@ export default function ProfilePage({ userProfile }) {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSignOut}
+          <SignOutButton
             className="text-rose-600 hover:text-rose-800 text-sm font-bold transition-colors flex items-center gap-1.5 px-2 py-1"
           >
             <LogOut size={14} />
             <span>Sign Out</span>
-          </button>
+          </SignOutButton>
         </div>
 
         {/* Live Odometer Impact Telemetry Section */}

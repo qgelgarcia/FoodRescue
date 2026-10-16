@@ -1,8 +1,8 @@
 import React from 'react';
 import { useHistory } from 'react-router-dom';
 import { Home, Compass, Plus, Bookmark, User } from 'lucide-react';
-import { Dock, DockItem } from './ui/calamansi/dock';
-import { getActiveClaims } from '../services/food';
+import { Dock, DockItem } from '../ui/calamansi/dock';
+import { getActiveClaims } from '../../services/food';
 
 const TAB_ORDER = { home: 0, map: 1, post: 2, history: 3, profile: 4 };
 

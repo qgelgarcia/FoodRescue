@@ -1,3 +1,4 @@
+import { friendlyError } from './request';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 const DEMO_USERS = {
@@ -51,7 +52,7 @@ export async function login(email, password) {
   });
 
   if (error) {
-    let friendlyMessage = error.message;
+    let friendlyMessage = friendlyError(error);
     if (error.message.toLowerCase().includes('invalid login credentials')) {
       friendlyMessage = 'Invalid email or password. Please verify your credentials.';
     } else if (error.message.toLowerCase().includes('email not confirmed')) {
@@ -126,7 +127,7 @@ export async function register({ email, password, fullName, phone, role = 'stude
   });
 
   if (error) {
-    let friendlyMessage = error.message;
+    let friendlyMessage = friendlyError(error);
     if (error.message.toLowerCase().includes('already registered')) {
       friendlyMessage = 'An account with this email already exists. Please sign in instead.';
     }
@@ -176,7 +177,7 @@ export async function signInWithGoogle() {
   });
 
   if (error) {
-    return { data: null, error: error.message };
+    return { data: null, error: friendlyError(error) };
   }
 
   return { data, error: null };

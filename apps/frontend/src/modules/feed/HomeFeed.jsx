@@ -1,5 +1,6 @@
+import FoodPreviewSlider from '../../components/food/FoodPreviewSlider';
+import { friendlyError } from '../../services/request';
 import React, { useState, useEffect } from 'react';
-import { IonInput } from '@ionic/react';
 import { 
   Sparkles, 
   Search, 
@@ -11,11 +12,11 @@ import {
   CheckCircle2,
   X
 } from 'lucide-react';
-import CustomerHeader from './CustomerHeader';
-import FoodCard from './FoodCard';
-import PageShell from './PageShell';
+import CustomerHeader from '../../components/layout/CustomerHeader';
+import FoodCard from '../../components/food/FoodCard';
+import PageShell from '../../components/layout/PageShell';
 
-import { getFoodPosts } from '../services/food';
+import { getFoodPosts } from '../../services/food';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function HomeFeed({ userProfile }) {
@@ -25,6 +26,7 @@ export default function HomeFeed({ userProfile }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [claimToast, setClaimToast] = useState(null);
+  const [previewPostId, setPreviewPostId] = useState(null);
 
   useEffect(() => {
     fetchPosts();
@@ -36,15 +38,20 @@ export default function HomeFeed({ userProfile }) {
     try {
       const data = await getFoodPosts();
       setPosts(data);
-    } catch {
+    } catch (error) {
       setPosts([]);
-      setError('We could not load the food feed. Check your connection and try again.');
+      setError(friendlyError(error));
     } finally {
       setLoading(false);
     }
   }
 
   function handleClaimSuccess(claim) {
+    if (claim.is_sample) {
+      setClaimToast('Sample claim saved on this device. No real food has been reserved.');
+      setTimeout(() => setClaimToast(null), 5000);
+      return;
+    }
     setClaimToast(`Claimed ${claim.quantity}x ${claim.post_title}! Check the top capsule for your pickup code.`);
     setTimeout(() => setClaimToast(null), 5000);
   }
@@ -67,7 +74,7 @@ export default function HomeFeed({ userProfile }) {
 
   return (
     <PageShell>
-      <div className="h-full w-full overflow-y-auto bg-[#f5faee] flex flex-col font-['DM_Sans',sans-serif] pb-24 relative">
+      <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-24 relative">
       <CustomerHeader active="home" userProfile={userProfile} />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
@@ -90,6 +97,12 @@ export default function HomeFeed({ userProfile }) {
           </div>
         )}
 
+        {posts.some(post => post.is_sample) && (
+          <p role="status" className="mb-5 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm text-[#285530]">
+            Sample listings for testing. Claims on these listings stay on this device and do not reserve real food.
+          </p>
+        )}
+
         {/* Hero Section */}
         <section className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -104,16 +117,16 @@ export default function HomeFeed({ userProfile }) {
 
           {/* Quick Search with clean icon */}
           <div className="relative w-full md:w-72">
-             <IonInput
+             <input
                id="food-search"
-               type="text"
+               type="search"
                value={searchQuery}
-               onIonInput={(e) => setSearchQuery(e.detail.value || '')}
+               onChange={(e) => setSearchQuery(e.target.value)}
                aria-label="Search food listings"
                placeholder="Search dishes or halls..."
-               className="w-full bg-white border border-[#2a382e]/20 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-[#182019] placeholder:text-[#687066] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#2c8a38]"
+               className="food-search"
             />
-            <Search size={14} className="absolute left-3.5 top-3 text-[#687066] pointer-events-none" />
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#687066] pointer-events-none" />
           </div>
         </section>
 
@@ -156,6 +169,8 @@ export default function HomeFeed({ userProfile }) {
           ))}
         </div>
 
+        {!loading && !error && filtered.length > 0 && <FoodPreviewSlider posts={filtered} onSelect={post => setPreviewPostId(post.id)} paused={previewPostId !== null} />}
+
         {/* Food Postings Grid */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -195,6 +210,8 @@ export default function HomeFeed({ userProfile }) {
               <FoodCard
                 key={post.id}
                 post={post}
+                previewOpen={previewPostId === post.id}
+                onPreviewClose={() => setPreviewPostId(null)}
                 onClaimSuccess={handleClaimSuccess}
               />
             ))}
