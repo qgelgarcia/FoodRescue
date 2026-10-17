@@ -1,3 +1,4 @@
+import AppearanceSettings from '../../components/auth/AppearanceSettings';
 import React from 'react';
 import { useHistory } from 'react-router-dom';
 import { 
@@ -203,6 +204,7 @@ export default function ProfilePage({ userProfile }) {
             <Settings size={16} className="text-[#687066]" />
             <span>Settings & Legal</span>
           </h3>
+          <AppearanceSettings />
           <div className="divide-y divide-[#2a382e]/10">
             {[
               { icon: <HelpCircle size={16} />, label: "FAQ", desc: "Common questions about rescues" },

@@ -2197,3 +2197,66 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #a3233
 .pickup-location-help { font-size: 12px; line-height: 1.6; color: #687066; margin: 12px 0; }
 .user-location-pin { display: grid; place-items: center; background: #fff; border-radius: 50%; box-shadow: 0 0 0 6px #3780b026, 0 2px 8px #18201940; }
 .user-location-pin span { width: 18px; height: 18px; border-radius: 50%; background: #267db4; border: 2px solid white; }
+
+/* Appearance is applied before first paint; only the reveal owns the transition. */
+:root { color-scheme: light; --theme-page: #f6f9f0; --theme-surface: #fff; --theme-raised: #f0f6ed; --theme-ink: #182019; --theme-muted: #687066; --theme-line: #dce4d7; --theme-accent: #286b32; }
+:root[data-theme="dark"] { color-scheme: dark; --theme-page: #101b15; --theme-surface: #1a2921; --theme-raised: #24382c; --theme-ink: #edf4e9; --theme-muted: #adbfad; --theme-line: #3b5142; --theme-accent: #a0db99; --ink: #edf4e9; --muted: #adbfad; --pale: #101b15; --card: #1a2921; --line: #3b5142; --green: #a0db99; }
+.theme-reveal::view-transition-old(root), .theme-reveal::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+.theme-reveal::view-transition-image-pair(root) { isolation: auto; }
+.theme-reveal::view-transition-new(root) { z-index: 2; }
+.theme-reveal::view-transition-old(root) { z-index: 1; }
+.theme-fade *, .theme-fade { transition: background-color .4s ease, color .4s ease, border-color .4s ease !important; }
+.appearance-setting { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 8px 0 24px; margin-bottom: 8px; border-bottom: 1px solid var(--theme-line); }
+.appearance-setting-copy h4 { margin: 0 0 5px; font-size: 14px; font-weight: 700; color: var(--theme-ink); }
+.appearance-setting-copy p { margin: 0; font-size: 12px; color: var(--theme-muted); }
+.appearance-toggle { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 12px 6px 7px; border: 1px solid var(--theme-line); border-radius: 16px; background: var(--theme-raised); color: var(--theme-ink); font-weight: 700; font-size: 12px; }
+.appearance-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: var(--theme-surface); color: var(--theme-accent); }
+.appearance-switch-track { display: flex; align-items: center; width: 34px; height: 20px; padding: 3px; background: #9bad96; border-radius: 999px; }
+.appearance-switch-track > span { width: 14px; height: 14px; border-radius: 50%; background: #fff; transform: translateX(0); }
+.appearance-toggle[aria-checked="true"] .appearance-switch-track { background: #4b9058; }
+.appearance-toggle[aria-checked="true"] .appearance-switch-track > span { transform: translateX(14px); }
+:root[data-theme="dark"] body, :root[data-theme="dark"] ion-app { background: var(--theme-page) !important; color: var(--theme-ink); }
+:root[data-theme="dark"] :is(.app-background-shell, .blocks-background) { background: var(--theme-page); }
+:root[data-theme="dark"] .blocks-background svg { opacity: .12; }
+:root[data-theme="dark"] .blocks-background::after { background: linear-gradient(#101b1500, #101b15d9); }
+:root[data-theme="dark"] :is(.bg-white, [class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/70"], .auth-card, .listing-card, .food-modal-panel, .signout-dialog, .pickup-map-action, .pickup-map-notice, .pickup-location-list > button, .food-search, .admin-panel, .metric-card, .admin-status-box) { background: var(--theme-surface); color: var(--theme-ink); border-color: var(--theme-line); }
+:root[data-theme="dark"] :is([class~="bg-[#fbfdf8]"], [class~="bg-[#f5faee]"], [class~="bg-[#f0f6ed]"], [class~="bg-[#e8efe2]"], [class~="bg-[#e8eee3]"], [class~="bg-[#e8eee3]/80"], [class~="bg-emerald-50"], [class~="bg-emerald-100"], [class~="bg-neutral-50"], [class~="bg-neutral-100"], .listing-category, .listing-expiry, .signout-cancel, .signout-icon, .pickup-location-list > button.is-selected) { background-color: var(--theme-raised); color: var(--theme-accent); border-color: var(--theme-line); }
+:root[data-theme="dark"] :is([class~="text-[#182019]"], .auth-header h2, .auth-header h2 span, .label-header, .signout-dialog h2, .pickup-map-heading h1, .food-preview-heading h2) { color: var(--theme-ink); }
+:root[data-theme="dark"] :is([class~="text-[#687066]"], [class~="text-[#4c5b4f]"], [class~="text-[#8fa37d]"], .auth-header p, .auth-footer, .auth-divider, .signout-dialog p, .pickup-map-heading p, .pickup-location-list span span, .pickup-location-list small, .pickup-location-help, .preview-count, .password-strength-caption, .password-guide li, .phone-input-wrap > span) { color: var(--theme-muted); }
+:root[data-theme="dark"] :is([class~="text-[#0c6b20]"], [class~="text-[#1c6428]"], [class~="text-[#2c8a38]"], [class~="text-emerald-700"], [class~="text-emerald-800"], .preview-eyebrow, .password-guide li.met, .pickup-popup strong, .listing-expiry, .listing-category) { color: var(--theme-accent); }
+:root[data-theme="dark"] :is([class*="border-[#2a382e]"], .listing-card-actions, .listing-card-meta, [class*="border-emerald-"], .preview-thumbnail, .signout-dialog) { border-color: var(--theme-line); }
+:root[data-theme="dark"] :is([class*="divide-[#2a382e]"]) > :not(:last-child) { border-color: var(--theme-line); }
+:root[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, .food-category-select, .pickup-radius-controls select) { background: #15241b; color: var(--theme-ink); border-color: var(--theme-line); caret-color: #a0db99; }
+:root[data-theme="dark"] input::placeholder, :root[data-theme="dark"] textarea::placeholder { color: #98ad9c; opacity: 1; }
+:root[data-theme="dark"] :is(.auth-container label, .password-field label, .phone-field label, .admin-broadcast-form label) { color: var(--theme-ink); }
+:root[data-theme="dark"] :is(.btn-google, .demo-shortcuts, .auth-tabs, .auth-tab-btn, .demo-shortcuts .chips button) { background: var(--theme-raised); color: var(--theme-ink); border-color: var(--theme-line); }
+:root[data-theme="dark"] .auth-tab-btn.active { background: #356b40; color: white; }
+:root[data-theme="dark"] :is(.link-btn, .btn-toggle-eye, .password-input-wrap button) { color: var(--theme-accent); }
+:root[data-theme="dark"] :is(.field-error, [class~="text-rose-700"], [class~="text-rose-800"]) { color: #ffb5ac; }
+:root[data-theme="dark"] [aria-invalid="true"] { border-color: #df887f !important; }
+:root[data-theme="dark"] :is(.listing-expiry.is-soon, [class~="bg-amber-100"]) { background: #4b3a20; color: #f4d295; }
+:root[data-theme="dark"] :is(.listing-expiry.is-urgent, [class~="bg-rose-50"], [class~="bg-rose-100"], .auth-alert.error) { background: #4a2929; color: #ffb5ac; }
+:root[data-theme="dark"] .auth-alert.success { background: #203e2a; color: #b4e5ac; }
+:root[data-theme="dark"] :is(.preview-thumbnail, .pickup-map-loading) { background: var(--theme-surface); color: var(--theme-ink); }
+:root[data-theme="dark"] .preview-thumbnail span { color: var(--theme-ink); }
+:root[data-theme="dark"] :is(.leaflet-popup-content-wrapper, .leaflet-popup-tip, .leaflet-bar a) { background: var(--theme-surface); color: var(--theme-ink); }
+:root[data-theme="dark"] .leaflet-control-attribution { background: #1a2921ed; color: var(--theme-ink); }
+:root[data-theme="dark"] .leaflet-control-attribution a { color: var(--theme-accent); }
+:root[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.72) saturate(.8); }
+:root[data-theme="dark"] .signout-confirm { color: #fff; }
+:root[data-theme="dark"] :is(button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [role="button"]:focus-visible) { outline-color: #a0db99; }
+:root[data-theme="dark"] ::selection { background: #4a8055; color: #fff; }
+:root[data-theme="dark"] * { scrollbar-color: #506b58 #15241b; }
+@media (prefers-reduced-motion: reduce) { .theme-fade *, .theme-fade { transition: none !important; } }
+:root[data-theme="dark"] :is(.text-black, [class~="text-black/70"]) { color: var(--theme-ink); }
+:root[data-theme="dark"] [class~="bg-black/10"] { background-color: #e4f4dc1f; }
+:root[data-theme="dark"] .listing-card-photo [class~="bg-white/95"] { background: #1a2921eb; }
+:root[data-theme="dark"] :is(.admin-header, .admin-sidebar, .admin-table-wrapper) { background: var(--theme-surface); color: var(--theme-ink); border-color: var(--theme-line); }
+:root[data-theme="dark"] :is(.admin-table th, .admin-table td) { background: transparent; color: var(--theme-ink); border-color: var(--theme-line); }
+/* Keep the control steady during the reveal instead of briefly dimming it. */
+.appearance-toggle:disabled { opacity: 1; cursor: progress; }
+
+/* Freeze incidental UI transitions while the browser captures the two themes. */
+.theme-reveal *, .theme-reveal *::before, .theme-reveal *::after { transition: none !important; animation: none !important; }
+.theme-reveal::view-transition-group(root) { animation: none; }
+.theme-reveal::view-transition-new(root) { will-change: clip-path; }
