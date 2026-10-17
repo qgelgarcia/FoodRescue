@@ -15,12 +15,13 @@
     "build:frontend": "npm run build --workspace=@foodrescue/frontend",
     "build:backend": "npm run build --workspace=@foodrescue/backend",
     "build:shared": "npm run build --workspace=@foodrescue/shared",
-    "test": "node --test apps/frontend/src/lib/*.test.js",
+    "test": "node --test apps/frontend/src/lib/*.test.js scripts/*.test.mjs",
     "start:backend": "npm run start --workspace=@foodrescue/backend",
     "preview:frontend": "npm run preview --workspace=@foodrescue/frontend",
     "db:push": "npx supabase db push",
     "db:diff": "npx supabase db diff",
-    "db:new-migration": "npx supabase migration new"
+    "db:new-migration": "npx supabase migration new",
+    "check:conflicts": "node scripts/check-conflicts.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
