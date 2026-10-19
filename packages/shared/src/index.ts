@@ -13,7 +13,7 @@ export interface Profile {
   created_at?: string;
 }
 
-export type FoodPostStatus = 'active' | 'fully_claimed' | 'expired' | 'removed_by_admin';
+export type FoodPostStatus = 'active' | 'fully_claimed' | 'expired' | 'removed_by_admin' | 'removed_by_donor';
 export type FoodCategory = 'Meals' | 'Produce' | 'Bakery' | 'Snacks' | 'Beverages' | 'Dairy' | 'Other';
 
 export interface FoodPost {

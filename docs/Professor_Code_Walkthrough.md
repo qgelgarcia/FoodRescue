@@ -208,7 +208,8 @@ React here uses functional components rather than class components. There are no
 | `apps/frontend/src/services/auth.js` | `signInWithGoogle`, `logout` | Starts OAuth and clears the current session |
 | `apps/frontend/src/services/auth.js` | `getCurrentProfile`, `onAuthStateChange` | Loads the profile and listens for session changes |
 | `apps/frontend/src/services/food.js` | `getFoodPosts` | Fetches active posts or returns demo posts when Supabase is not configured |
-| `apps/frontend/src/services/food.js` | `createFoodPost` | Validates quantity and creates a post through Supabase or local demo storage |
+| `apps/frontend/src/services/food.js` | `createFoodPost`, `updateFoodPost` | Creates or edits a donor's listing through Supabase or local demo storage |
+| `apps/frontend/src/services/food.js` | `getOwnFoodPosts`, `archiveFoodPost` | Loads the donor's active listings and archives a listing without deleting claim history |
 | `apps/frontend/src/services/food.js` | `claimFoodPost` | Validates a claim and calls the atomic `claim_food` RPC when configured |
 | `apps/frontend/src/services/food.js` | `getActiveClaims`, `completeClaim` | Reads local claim passes and updates pickup status |
 | `apps/frontend/src/lib/validation.js` | `validateFoodPostDraft` | Performs whole-form/object validation for a food post |
@@ -228,8 +229,8 @@ React here uses functional components rather than class components. There are no
 3. `apps/frontend/src/components/PageShell.jsx`: applies `IonPage` and `IonContent` to user screens.
 4. `apps/frontend/src/components/HomeFeed.jsx`: loads/filter food posts and renders `FoodCard` repeatedly.
 5. `apps/frontend/src/components/FoodCard.jsx`: reusable card, portion state, claim event, and details modal.
-6. `apps/frontend/src/components/PostPage.jsx`: controlled form, client-side validation, photo preview, and create operation.
-7. `apps/frontend/src/services/food.js`: fetch/create/claim logic and demo fallback storage.
+6. `apps/frontend/src/modules/post/PostPage.jsx`: controlled form, client-side validation, listing creation/editing, and donor listing management.
+7. `apps/frontend/src/services/food.js`: fetch/create/edit/archive/claim logic and demo fallback storage.
 8. `apps/frontend/src/services/auth.js`: login, registration, OAuth, logout, and profile loading.
 9. `apps/frontend/src/guards/`: authentication and role-based route protection.
 10. `packages/shared/src/index.ts`: shared TypeScript interfaces such as `Profile`, `FoodPost`, `Claim`, and `ApiResponse`.

@@ -32,7 +32,7 @@ export async function getFoodPosts() {
   }
 
   // Load any locally created posts merged with defaults
-  const customPosts = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
+  const customPosts = readStoredArray(LOCAL_STORAGE_POSTS_KEY).filter((post) => post.status === 'active');
   const inventory = readStoredObject(LOCAL_STORAGE_INVENTORY_KEY);
 
   return [...customPosts, ...DEFAULT_POSTS].map((post) => {
@@ -105,6 +105,95 @@ export async function createFoodPost({ foodName, description, category, quantity
   const existing = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
   localStorage.setItem(LOCAL_STORAGE_POSTS_KEY, JSON.stringify([localPost, ...existing]));
   return { post: localPost, error: null };
+}
+
+export async function getOwnFoodPosts() {
+  if (isSupabaseConfigured()) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Please sign in to manage your food listings.');
+
+    const { data, error } = await supabase
+      .from('food_posts')
+      .select('*')
+      .eq('donor_id', session.user.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    if (!Array.isArray(data)) throw new Error('bad response');
+    return data;
+  }
+
+  const inventory = readStoredObject(LOCAL_STORAGE_INVENTORY_KEY);
+  return readStoredArray(LOCAL_STORAGE_POSTS_KEY)
+    .filter((post) => post.status === 'active')
+    .map((post) => ({
+      ...post,
+      quantity_remaining: typeof inventory[post.id] === 'number' ? inventory[post.id] : post.quantity_remaining,
+    }));
+}
+
+export async function updateFoodPost(postId, { foodName, description, category, pickupAddress, photoUrl, expiresHours }) {
+  const expiresAt = new Date(Date.now() + expiresHours * 3600 * 1000).toISOString();
+  const updates = {
+    food_name: foodName,
+    description,
+    category,
+    pickup_address: pickupAddress,
+    photo_url: photoUrl,
+    expires_at: expiresAt,
+  };
+
+  if (isSupabaseConfigured()) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Please sign in to edit your food listing.');
+
+    const { data, error } = await supabase
+      .from('food_posts')
+      .update(updates)
+      .eq('id', postId)
+      .eq('donor_id', session.user.id)
+      .eq('status', 'active')
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error('This listing could not be found or is no longer active.');
+    return data;
+  }
+
+  const posts = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
+  const index = posts.findIndex((post) => post.id === postId && post.status === 'active');
+  if (index < 0) throw new Error('This listing could not be found or is no longer active.');
+
+  posts[index] = { ...posts[index], ...updates };
+  localStorage.setItem(LOCAL_STORAGE_POSTS_KEY, JSON.stringify(posts));
+  return posts[index];
+}
+
+export async function archiveFoodPost(postId) {
+  if (isSupabaseConfigured()) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Please sign in to archive your food listing.');
+
+    const { data, error } = await supabase
+      .from('food_posts')
+      .update({ status: 'removed_by_donor' })
+      .eq('id', postId)
+      .eq('donor_id', session.user.id)
+      .eq('status', 'active')
+      .select('id')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error('This listing could not be found or is no longer active.');
+    return data.id;
+  }
+
+  const posts = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
+  const index = posts.findIndex((post) => post.id === postId && post.status === 'active');
+  if (index < 0) throw new Error('This listing could not be found or is no longer active.');
+
+  posts[index] = { ...posts[index], status: 'removed_by_donor' };
+  localStorage.setItem(LOCAL_STORAGE_POSTS_KEY, JSON.stringify(posts));
+  return postId;
 }
 
 /**
