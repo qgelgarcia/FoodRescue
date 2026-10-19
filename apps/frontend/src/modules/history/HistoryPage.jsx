@@ -3,10 +3,13 @@ import { Ticket, MapPin, CheckCircle2, Clock, Utensils, ArrowRight } from 'lucid
 import CustomerHeader from '../../components/layout/CustomerHeader';
 import PageShell from '../../components/layout/PageShell';
 
-import { getActiveClaims, completeClaim } from '../../services/food';
+import { getMyFoodClaims, completeClaim } from '../../services/food';
 
 export default function HistoryPage({ userProfile }) {
   const [claims, setClaims] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [completing, setCompleting] = useState('');
 
   useEffect(() => {
     loadClaims();
@@ -15,13 +18,28 @@ export default function HistoryPage({ userProfile }) {
     return () => window.removeEventListener('foodrescue:claim_updated', handleUpdate);
   }, []);
 
-  function loadClaims() {
-    setClaims(getActiveClaims());
+  async function loadClaims() {
+    try {
+      setClaims(await getMyFoodClaims());
+      setError('');
+    } catch (cause) {
+      setError(cause.message || 'Could not load your pickups.');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleComplete(id) {
-    completeClaim(id);
-    loadClaims();
+  async function handleComplete(claim) {
+    setCompleting(claim.id);
+    setError('');
+    try {
+      await completeClaim(claim);
+      await loadClaims();
+    } catch (cause) {
+      setError(cause.message || 'Could not complete this pickup.');
+    } finally {
+      setCompleting('');
+    }
   }
 
   return (
@@ -44,7 +62,9 @@ export default function HistoryPage({ userProfile }) {
           </p>
         </div>
 
-        {claims.length === 0 ? (
+        {error && <p role="alert" className="mb-4 text-sm text-rose-700">{error}</p>}
+
+        {loading ? <div className="bg-white rounded-3xl p-12 text-center border border-[#2a382e]/10 shadow-sm" role="status">Loading your pickups…</div> : claims.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-[#2a382e]/10 shadow-sm">
             <div className="size-12 rounded-2xl bg-emerald-50 text-[#0c6b20] flex items-center justify-center mx-auto mb-3 border border-emerald-200">
               <Ticket size={24} />
@@ -65,6 +85,7 @@ export default function HistoryPage({ userProfile }) {
           <div className="space-y-4">
             {claims.map((claim) => {
               const isReady = claim.status === 'ready_for_pickup';
+              const statusLabel = isReady ? 'Ready for Pickup' : claim.status === 'picked_up' ? 'Picked Up' : claim.status;
               return (
                 <div
                   key={claim.id}
@@ -94,7 +115,7 @@ export default function HistoryPage({ userProfile }) {
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
                             isReady ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-neutral-100 text-neutral-600'
                           }`}>
-                            {isReady ? <><Clock size={10} /> Ready for Pickup</> : <><CheckCircle2 size={10} /> Completed</>}
+                            {isReady ? <><Clock size={10} /> {statusLabel}</> : <><CheckCircle2 size={10} /> {statusLabel}</>}
                           </span>
                         </div>
                         <p className="text-xs text-[#4c5b4f] mt-0.5 flex items-center gap-1">
@@ -108,17 +129,17 @@ export default function HistoryPage({ userProfile }) {
 
                     {/* Claim Pass Code & Action */}
                     <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0 border-[#2a382e]/10">
-                      <div className="bg-emerald-50 text-[#0c6b20] border border-emerald-300 font-mono font-extrabold text-sm px-3 py-1.5 rounded-xl tracking-wider">
-                        {claim.claim_code}
-                      </div>
-                      {isReady && (
+                      {isReady && claim.claim_code ? <div className="bg-emerald-50 text-[#0c6b20] border border-emerald-300 font-mono font-extrabold text-sm px-3 py-1.5 rounded-xl tracking-wider">{claim.claim_code}</div>
+                        : isReady ? <span className="text-xs text-rose-700">Pickup pass unavailable</span> : null}
+                      {isReady && claim.claim_code && (
                         <button
                           type="button"
-                          onClick={() => handleComplete(claim.id)}
+                          disabled={completing === claim.id}
+                          onClick={() => handleComplete(claim)}
                           className="px-3.5 py-1.5 bg-[#2c8a38] hover:bg-[#23702d] text-white rounded-xl text-xs font-bold transition-colors shadow-2xs flex items-center gap-1"
                         >
                           <CheckCircle2 size={12} />
-                          <span>Mark Picked Up</span>
+                          <span>{completing === claim.id ? 'Saving…' : 'Mark Picked Up'}</span>
                         </button>
                       )}
                     </div>

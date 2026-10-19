@@ -207,13 +207,33 @@ export async function claimFoodPost(post, portionCount = 1) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) throw new Error('Please sign in before claiming food.');
 
-    const { error } = await supabase.rpc('claim_food', {
+    const { data, error } = await supabase.rpc('claim_food', {
       post_id: post.id,
       claimant_id: session.user.id,
       qty: portionCount,
     });
 
     if (error) throw new Error(error.message);
+
+    const created = Array.isArray(data) ? data[0] : data;
+    if (!created?.claim_id || !created?.claim_code) throw new Error('The pickup pass was not returned by the server.');
+
+    const claimRecord = {
+      id: created.claim_id,
+      claim_code: created.claim_code,
+      post_id: post.id,
+      post_title: post.food_name,
+      category: post.category,
+      quantity: portionCount,
+      location: post.pickup_address,
+      donor_name: post.donor?.full_name || 'Campus Dining',
+      claimed_at: new Date().toISOString(),
+      expires_at: post.expires_at,
+      status: 'ready_for_pickup',
+      image: post.photo_url,
+    };
+    window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: claimRecord }));
+    return claimRecord;
   }
 
   const claimRecord = {
@@ -228,7 +248,7 @@ export async function claimFoodPost(post, portionCount = 1) {
     claimed_at: new Date().toISOString(),
     expires_at: post.expires_at,
     status: 'ready_for_pickup', // ready_for_pickup -> picked_up -> completed
-    is_sample: Boolean(post.is_sample),
+    is_sample: true,
     image: post.photo_url
   };
 
@@ -249,17 +269,32 @@ export async function claimFoodPost(post, portionCount = 1) {
 /**
  * Get active claims for current user
  */
-export function getActiveClaims() {
-  return readStoredArray(LOCAL_STORAGE_CLAIMS_KEY);
+export async function getMyFoodClaims() {
+  const sampleClaims = readStoredArray(LOCAL_STORAGE_CLAIMS_KEY).filter((claim) => claim.is_sample);
+  if (!isSupabaseConfigured()) return sampleClaims;
+
+  const { data, error } = await supabase.rpc('get_my_food_claims');
+  if (error) throw error;
+  return [...(Array.isArray(data) ? data.map((claim) => ({ ...claim, is_sample: false })) : []), ...sampleClaims]
+    .sort((a, b) => new Date(b.claimed_at) - new Date(a.claimed_at));
 }
 
 /**
  * Mark a claim as completed / picked up
  */
-export function completeClaim(claimId) {
+export async function completeClaim(claim) {
+  if (isSupabaseConfigured() && !claim.is_sample) {
+    const { error } = await supabase.rpc('complete_food_claim', {
+      p_claim_id: claim.id,
+      p_pickup_code: claim.claim_code,
+    });
+    if (error) throw error;
+    window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: { id: claim.id, status: 'picked_up' } }));
+    return;
+  }
+
   const claims = readStoredArray(LOCAL_STORAGE_CLAIMS_KEY);
-  const updated = claims.map((c) => (c.id === claimId ? { ...c, status: 'picked_up' } : c));
+  const updated = claims.map((c) => (c.id === claim.id ? { ...c, status: 'picked_up' } : c));
   localStorage.setItem(LOCAL_STORAGE_CLAIMS_KEY, JSON.stringify(updated));
-  window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: { id: claimId, status: 'picked_up' } }));
-  return updated;
+  window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: { id: claim.id, status: 'picked_up' } }));
 }

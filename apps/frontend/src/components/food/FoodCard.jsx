@@ -1,13 +1,15 @@
 import { createPortal } from 'react-dom';
 import { friendlyError } from '../../services/request';
 import React, { useState, useEffect, useRef } from 'react';
+import { useHistory } from 'react-router-dom';
 import { Clock, MapPin, Check, Plus, Minus, ChevronRight, ChevronLeft, X, Info } from 'lucide-react';
 import { NumberTicker } from '../ui/calamansi/number-ticker';
 import { claimFoodPost } from '../../services/food';
 import { validateClaimQuantity } from '../../lib/validation';
 import { motion, AnimatePresence } from 'motion/react';
 
-export default function CalamansiFoodCard({ post, onClaimSuccess, previewOpen = false, onPreviewClose }) {
+export default function CalamansiFoodCard({ post, userProfile, onClaimSuccess, previewOpen = false, onPreviewClose }) {
+  const history = useHistory();
   const [portion, setPortion] = useState(1);
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimedNotice, setClaimedNotice] = useState(false);
@@ -44,6 +46,12 @@ export default function CalamansiFoodCard({ post, onClaimSuccess, previewOpen = 
 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [photoDirection, setPhotoDirection] = useState(1);
+  const canClaim = userProfile?.status === 'active';
+
+  function reportTarget(type, id, label) {
+    setIsModalOpen(false);
+    history.push('/app/reports', { reportTarget: { type, id, label } });
+  }
 
   // Generate some extra mock photos for the carousel effect
   const photos = [
@@ -207,7 +215,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess, previewOpen = 
               <button
                 type="button"
                 onClick={handleClaim}
-                disabled={isClaiming || post.quantity_remaining <= 0}
+                disabled={isClaiming || post.quantity_remaining <= 0 || !canClaim}
                 className={`listing-claim-button flex-1 py-3.5 px-6 rounded-2xl font-extrabold text-[15px] transition-all shadow-md flex items-center justify-center gap-2 ${
                   claimedNotice
                     ? 'bg-emerald-600 text-white'
@@ -229,6 +237,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess, previewOpen = 
                 )}
               </button>
             </div>
+            {!canClaim && <p className="mt-3 text-xs font-semibold text-amber-800">Your account cannot start a new pickup. You can still finish existing pickups and submit reports.</p>}
             {claimError && <p className="mt-3 text-xs font-semibold text-rose-700" role="alert">{claimError}</p>}
           </div>
         </article>
@@ -337,6 +346,11 @@ export default function CalamansiFoodCard({ post, onClaimSuccess, previewOpen = 
                     <p className="text-xs text-[#4c5b4f] mt-0.5">{post.is_sample ? 'This is a sample listing. No real pickup is available.' : 'Show your claim pass at the counter to collect your rescue.'}</p>
                   </div>
                 </div>
+
+                {!post.is_sample && post.donor_id !== userProfile?.id && <div className="flex flex-wrap gap-3 self-stretch text-xs">
+                  <button type="button" className="member-report-link" onClick={() => reportTarget('post', post.id, post.food_name)}>Report this listing</button>
+                  {post.donor_id && <button type="button" className="member-report-link" onClick={() => reportTarget('user', post.donor_id, post.donor?.full_name || 'Campus member')}>Report donor</button>}
+                </div>}
                 
                 <div className="mt-6 pt-5 border-t border-[#2a382e]/10 flex items-center gap-4 self-stretch">
                   <div className="flex-1">
@@ -350,7 +364,7 @@ export default function CalamansiFoodCard({ post, onClaimSuccess, previewOpen = 
                       // Trigger claim flow on the card
                       handleClaim({ stopPropagation: () => {} });
                     }}
-                    disabled={isClaiming || post.quantity_remaining <= 0}
+                    disabled={isClaiming || post.quantity_remaining <= 0 || !canClaim}
                     className="py-3.5 px-8 bg-gradient-to-b from-[#2c8a38] to-[#1c6428] hover:from-[#23702d] hover:to-[#164d1f] text-white rounded-2xl font-extrabold text-[15px] transition-all shadow-lg hover:scale-[1.02]"
                   >
                     Claim {portion} Portion{portion > 1 ? 's' : ''}

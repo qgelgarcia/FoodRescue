@@ -330,7 +330,7 @@ client_id = ""
 secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
 
 [auth.external.google]
-enabled = true
+enabled = false
 client_id = ""
 secret = ""
 # Overrides default redirect URI if needed

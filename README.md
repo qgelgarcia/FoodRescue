@@ -36,3 +36,4 @@ From the repository root:
 
 - `docs/Professor_Code_Walkthrough.md` — Framework locations, Ionic card usage, React components, `className`, and data flow.
 - `docs/Rubric_Audit.md` — Evidence-based checklist audit, including manual items that still require device or presentation testing.
+- `docs/Member5_Admin_Moderation.md` — Admin/report migration, secure provisioning, desktop deployment, and end-to-end demo steps.
