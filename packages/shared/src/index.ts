@@ -33,7 +33,21 @@ export interface FoodPost {
   created_at?: string;
 }
 
-export type ClaimStatus = 'pending' | 'accepted' | 'rejected' | 'picked_up' | 'cancelled';
+export type ClaimStatus = 'pending' | 'accepted' | 'rejected' | 'picked_up' | 'cancelled' | 'expired';
+
+export type ClaimCancellationStatus = 'pending' | 'approved' | 'denied' | 'obsolete';
+
+export interface ClaimCancellationRequest {
+  id: string;
+  claim_id: string;
+  requester_id: string;
+  reason: string;
+  status: ClaimCancellationStatus;
+  decision_reason?: string | null;
+  requested_at: string;
+  decided_at?: string | null;
+  decided_by?: string | null;
+}
 
 export interface Claim {
   id: string;

@@ -14,6 +14,7 @@ import MapPage from './modules/map/MapPage';
 import PostPage from './modules/post/PostPage';
 import HistoryPage from './modules/history/HistoryPage';
 import ProfilePage from './modules/profile/ProfilePage';
+import ReportsPage from './modules/reports/ReportsPage';
 
 import { AnimatePresence, motion } from 'motion/react';
 import { useLocation } from 'react-router-dom';
@@ -23,8 +24,8 @@ const ADMIN_ROUTES = [
   '/admin/dashboard',
   '/admin/users',
   '/admin/posts',
+  '/admin/claims',
   '/admin/reports',
-  '/admin/broadcast',
   '/admin/logs',
 ];
 
@@ -36,7 +37,8 @@ function UserModuleTabs({ userProfile }) {
     '/app/map': 'map',
     '/app/post': 'post',
     '/app/history': 'history',
-    '/app/profile': 'profile'
+    '/app/profile': 'profile',
+    '/app/reports': 'profile'
   };
   const activeTab = activeMap[location.pathname] || 'home';
   const direction = location.state?.direction || 1;
@@ -90,6 +92,9 @@ function UserModuleTabs({ userProfile }) {
             </Route>
             <Route exact path="/app/profile">
               <ProfilePage userProfile={userProfile} />
+            </Route>
+            <Route exact path="/app/reports">
+              <ReportsPage userProfile={userProfile} />
             </Route>
             <Route exact path="/app"><Redirect to="/app/home-feed" /></Route>
           </Switch>

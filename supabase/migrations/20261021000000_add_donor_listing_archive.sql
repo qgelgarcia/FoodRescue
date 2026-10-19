@@ -9,4 +9,4 @@ drop policy if exists "donor_update_own_post" on public.food_posts;
 create policy "donor_update_own_post" on public.food_posts
   for update
   using (donor_id = auth.uid())
-  with check (donor_id = auth.uid());
+  with check (donor_id = auth.uid() and public.is_active_member());

@@ -25,7 +25,7 @@ export default function RoleGuard({ component: Component, allowedRole = 'admin',
     <Route
       {...rest}
       render={(props) =>
-        profile.role === allowedRole ? (
+        profile.role === allowedRole && profile.status === 'active' ? (
           <Component {...props} userProfile={profile} />
         ) : (
           <Redirect to="/app/home-feed" />

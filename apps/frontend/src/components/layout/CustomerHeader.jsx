@@ -8,40 +8,72 @@ import {
   Clock,
   CheckCircle2,
   ArrowRight,
-  TrendingUp,
+  Bell,
   X
 } from 'lucide-react';
-import { Marquee } from '../ui/calamansi/marquee';
 import { motion, AnimatePresence } from 'motion/react';
 
-import { getActiveClaims, completeClaim } from '../../services/food';
+import { getMyFoodClaims } from '../../services/food';
+import { getMyNotifications, markNotificationRead } from '../../services/notifications';
 
 export default function CustomerHeader({ active, userProfile }) {
   const history = useHistory();
   const [activeClaims, setActiveClaims] = useState([]);
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
+  const [pickupError, setPickupError] = useState('');
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationError, setNotificationError] = useState('');
 
   useEffect(() => {
     loadClaims();
     const handleUpdate = () => loadClaims();
     window.addEventListener('foodrescue:claim_updated', handleUpdate);
-    return () => window.removeEventListener('foodrescue:claim_updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    const timer = setInterval(() => { if (!document.hidden) loadClaims(); }, 15000);
+    return () => {
+      window.removeEventListener('foodrescue:claim_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      clearInterval(timer);
+    };
   }, []);
 
-  function loadClaims() {
-    const claims = getActiveClaims();
-    const pending = claims.filter((c) => c.status === 'ready_for_pickup');
-    setActiveClaims(pending);
+  async function loadNotifications() {
+    try {
+      setNotifications(await getMyNotifications());
+      setNotificationError('');
+    } catch (error) {
+      setNotificationError(error.message || 'Could not load notifications.');
+    }
+  }
+
+  async function openNotifications() {
+    const open = !notificationsOpen;
+    setNotificationsOpen(open);
+    if (open) await loadNotifications();
+  }
+
+  async function handleNotificationRead(notification) {
+    if (notification.is_read) return;
+    try {
+      await markNotificationRead(notification.id);
+      setNotifications((items) => items.map((item) => item.id === notification.id ? { ...item, is_read: true } : item));
+    } catch (error) {
+      setNotificationError(error.message || 'Could not update this notification.');
+    }
+  }
+
+  async function loadClaims() {
+    try {
+      const claims = await getMyFoodClaims();
+      setActiveClaims(claims.filter((c) => !c.is_sample && ['pending', 'accepted'].includes(c.status) && new Date(c.expires_at).getTime() > Date.now()));
+      setPickupError('');
+    } catch (error) {
+      setPickupError(error.message || 'Could not load your active pickup.');
+    }
   }
 
   const latestClaim = activeClaims[0];
-
-  function handleMarkPickedUp(e, claimId) {
-    e.stopPropagation();
-    completeClaim(claimId);
-    setIsPickupModalOpen(false);
-    loadClaims();
-  }
 
   return (
     <>
@@ -76,10 +108,24 @@ export default function CustomerHeader({ active, userProfile }) {
               >
                 <Ticket size={14} className="text-[#2c8a38] hidden sm:block" />
                 <Ticket size={16} className="text-[#2c8a38] sm:hidden" />
-                <span className="text-xs font-bold text-[#182019] hidden sm:inline">Active Pickup: {latestClaim.claim_code}</span>
+                <span className="text-xs font-bold text-[#182019] hidden sm:inline">{latestClaim.status === 'pending' ? 'Awaiting donor' : 'Accepted pickup'}</span>
                 <span className="size-2.5 rounded-full bg-emerald-500 animate-pulse" />
               </button>
             )}
+
+            <div className="member-notification-wrap">
+              <button type="button" className="member-notification-button" aria-label="Notifications" aria-expanded={notificationsOpen} aria-controls="member-notifications" onClick={openNotifications}>
+                <Bell size={19} />
+                {notifications.some((item) => !item.is_read) && <span className="member-notification-count">{notifications.filter((item) => !item.is_read).length}</span>}
+              </button>
+              {notificationsOpen && <section id="member-notifications" className="member-notification-panel" aria-label="Your notifications">
+                <div className="member-notification-heading"><strong>Notifications</strong><button type="button" onClick={loadNotifications}>Refresh</button></div>
+                {notificationError && <p role="alert" className="member-notification-error">{notificationError}</p>}
+                {notifications.length ? notifications.map((item) => <button type="button" key={item.id} className={`member-notification-item ${item.is_read ? '' : 'unread'}`} onClick={() => handleNotificationRead(item)}>
+                  <span>{item.message}</span><small>{new Date(item.created_at).toLocaleString()}</small>
+                </button>) : <p className="member-notification-empty">No notifications yet.</p>}
+              </section>}
+            </div>
 
             {/* Profile Pill */}
             <button
@@ -135,8 +181,8 @@ export default function CustomerHeader({ active, userProfile }) {
                   <Ticket size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-[#687066] uppercase tracking-wide">Active Pass</p>
-                  <p className="text-sm font-extrabold text-[#182019] font-mono">{latestClaim.claim_code}</p>
+                  <p className="text-xs font-bold text-[#687066] uppercase tracking-wide">Food request</p>
+                  <p className="text-sm font-extrabold text-[#182019]">{latestClaim.status === 'pending' ? 'Waiting for donor approval' : 'Accepted by donor'}</p>
                 </div>
               </div>
 
@@ -148,20 +194,13 @@ export default function CustomerHeader({ active, userProfile }) {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#4c5b4f]">Quantity: <b className="text-[#182019]">{latestClaim.quantity} portion(s)</b></span>
                   <span className="text-[#2c8a38] font-bold flex items-center gap-1">
-                    <Clock size={14} /> Ready
+                    <Clock size={14} /> {latestClaim.status === 'pending' ? 'Pending' : 'Accepted'}
                   </span>
                 </div>
               </div>
 
               <div className="flex gap-2.5">
-                <button
-                  type="button"
-                  onClick={(e) => handleMarkPickedUp(e, latestClaim.id)}
-                  className="flex-1 py-2.5 px-4 bg-[#2c8a38] text-white rounded-2xl font-extrabold text-sm hover:bg-[#23702d] transition-colors shadow-sm flex items-center justify-center gap-2"
-                >
-                  <CheckCircle2 size={16} />
-                  Mark Picked Up
-                </button>
+                {pickupError && <p className="text-xs text-rose-700" role="alert">{pickupError}</p>}
                 <button
                   type="button"
                   onClick={() => {

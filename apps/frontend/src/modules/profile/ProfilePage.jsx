@@ -1,5 +1,5 @@
 import AppearanceSettings from '../../components/auth/AppearanceSettings';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import { 
   UtensilsCrossed, 
@@ -23,11 +23,14 @@ import PageShell from '../../components/layout/PageShell';
 
 import { NumberTicker } from '../../components/ui/calamansi/number-ticker';
 import SignOutButton from '../../components/auth/SignOutButton';
-import { getActiveClaims } from '../../services/food';
+import { getMyFoodClaims } from '../../services/food';
 
 export default function ProfilePage({ userProfile }) {
   const history = useHistory();
-  const claims = getActiveClaims();
+  const [claims, setClaims] = useState([]);
+  useEffect(() => {
+    getMyFoodClaims().then(setClaims).catch(() => {});
+  }, []);
   const completedClaims = claims.filter((c) => c.status === 'picked_up');
   
   // Calculate dynamic metrics based on rescues
@@ -79,12 +82,15 @@ export default function ProfilePage({ userProfile }) {
             </div>
           </div>
 
+          <div className="flex items-center gap-4">
+          <button type="button" onClick={() => history.push('/app/reports')} className="member-report-link">My Reports</button>
           <SignOutButton
             className="text-rose-600 hover:text-rose-800 text-sm font-bold transition-colors flex items-center gap-1.5 px-2 py-1"
           >
             <LogOut size={14} />
             <span>Sign Out</span>
           </SignOutButton>
+          </div>
         </div>
 
         {/* Live Odometer Impact Telemetry Section */}

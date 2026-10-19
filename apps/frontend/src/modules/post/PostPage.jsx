@@ -180,6 +180,10 @@ export default function PostPage({ userProfile }) {
       <CustomerHeader active="post" userProfile={userProfile} />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
+
+        {userProfile?.status !== 'active' && <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Your account cannot publish new listings while it is suspended. You can still report concerns and finish existing pickups.
+        </p>}
         
         <div className="mb-6">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-[#0c6b20] text-xs font-bold mb-2.5 border border-emerald-200">
@@ -405,7 +409,7 @@ export default function PostPage({ userProfile }) {
 
             <button
               type="submit"
-              disabled={loading || !validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, photos }).isValid}
+              disabled={loading || userProfile?.status !== 'active' || !validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, photos }).isValid}
               className="bg-gradient-to-b from-[#2c8a38] to-[#1c6428] text-white rounded-2xl py-4 px-6 w-full mt-4 font-extrabold text-[15px] shadow-lg transition-all tracking-wide"
             >
               {loading ? (editingPostId ? 'Saving Changes...' : 'Publishing Food Drop...') : (editingPostId ? 'Save Listing Changes' : 'Publish Food Drop Live')}

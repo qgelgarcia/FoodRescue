@@ -1,15 +1,27 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import { Home, Compass, Plus, Bookmark, User } from 'lucide-react';
 import { Dock, DockItem } from '../ui/calamansi/dock';
-import { getActiveClaims } from '../../services/food';
+import { getMyFoodClaims } from '../../services/food';
 
 const TAB_ORDER = { home: 0, map: 1, post: 2, history: 3, profile: 4 };
 
 export default function FloatingBottomDock({ active }) {
   const history = useHistory();
-  const claims = getActiveClaims();
-  const pendingCount = claims.filter((c) => c.status === 'ready_for_pickup').length;
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = () => getMyFoodClaims().then((claims) => {
+      if (mounted) setPendingCount(claims.filter((claim) => !claim.is_sample && ['pending', 'accepted'].includes(claim.status) && new Date(claim.expires_at).getTime() > Date.now()).length);
+    }).catch(() => {});
+    load();
+    window.addEventListener('foodrescue:claim_updated', load);
+    return () => {
+      mounted = false;
+      window.removeEventListener('foodrescue:claim_updated', load);
+    };
+  }, []);
 
   const handleNav = (tab, path) => {
     const currentIdx = TAB_ORDER[active];

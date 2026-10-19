@@ -34,5 +34,8 @@ From the repository root:
 
 ## Code Reading Guides
 
+- `docs/Claim_Workflow_Setup.md` — Donor acceptance/rejection, cancellation approval, QR/manual pickup verification, and database setup/testing.
+
 - `docs/Professor_Code_Walkthrough.md` — Framework locations, Ionic card usage, React components, `className`, and data flow.
 - `docs/Rubric_Audit.md` — Evidence-based checklist audit, including manual items that still require device or presentation testing.
+- `docs/Member5_Admin_Moderation.md` — Admin/report migration, secure provisioning, desktop deployment, and end-to-end demo steps.

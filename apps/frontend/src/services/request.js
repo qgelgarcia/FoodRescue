@@ -1,4 +1,7 @@
+import { ClaimWorkflowError } from '../lib/claim-inputs.js';
+
 export function friendlyError(error) {
+  if (error instanceof ClaimWorkflowError) return error.message;
   const message = String(error?.message || error || '').toLowerCase();
   if (globalThis.navigator?.onLine === false || /fetch|network|connection/.test(message)) return 'You appear to be offline. Check your connection and try again.';
   if (/timeout|timed out|abort/.test(message)) return 'This is taking longer than expected. Please try again in a moment.';

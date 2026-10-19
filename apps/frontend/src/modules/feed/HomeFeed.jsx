@@ -52,7 +52,8 @@ export default function HomeFeed({ userProfile }) {
       setTimeout(() => setClaimToast(null), 5000);
       return;
     }
-    setClaimToast(`Claimed ${claim.quantity}x ${claim.post_title}! Check the top capsule for your pickup code.`);
+    setClaimToast(`Requested ${claim.quantity}x ${claim.post_title}. Your portions are reserved while the donor reviews your request.`);
+    fetchPosts();
     setTimeout(() => setClaimToast(null), 5000);
   }
 
@@ -78,6 +79,10 @@ export default function HomeFeed({ userProfile }) {
       <CustomerHeader active="home" userProfile={userProfile} />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
+
+        {userProfile?.status !== 'active' && <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Your account cannot start new posts or pickups. Existing pickups can still be completed, and you can submit reports.
+        </p>}
         
         {/* Claim Success Floating Alert Banner */}
         {claimToast && (
@@ -210,6 +215,7 @@ export default function HomeFeed({ userProfile }) {
               <FoodCard
                 key={post.id}
                 post={post}
+                userProfile={userProfile}
                 previewOpen={previewPostId === post.id}
                 onPreviewClose={() => setPreviewPostId(null)}
                 onClaimSuccess={handleClaimSuccess}
