@@ -313,13 +313,19 @@ export default function AdminDashboard({ userProfile }) {
     </AdminSection>;
 
     return <AdminSection title="Audit Log" description="Search and export the latest 200 immutable moderation records.">
-      <div className="admin-filter-controls">
-        <label>Search <input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder="Action, admin, target, or details" /></label>
-        <label>From <input type="date" value={auditFrom} onChange={(event) => setAuditFrom(event.target.value)} /></label>
-        <label>To <input type="date" value={auditTo} onChange={(event) => setAuditTo(event.target.value)} /></label>
-        <span>{filteredAuditLogs.length} of {(data || []).length} entries</span>
-        <button type="button" className="admin-action-button" disabled={loading} onClick={refresh}>{loading ? 'Refreshing…' : 'Refresh'}</button>
-        <button type="button" className="admin-action-button" disabled={!filteredAuditLogs.length} onClick={() => downloadAuditCsv(filteredAuditLogs)}>Export visible rows as CSV</button>
+      <div className="admin-filter-controls admin-audit-controls">
+        <div className="admin-audit-filters">
+          <label>Search <input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder="Action, admin, target, or details" /></label>
+          <label>From <input type="date" value={auditFrom} onChange={(event) => setAuditFrom(event.target.value)} /></label>
+          <label>To <input type="date" value={auditTo} onChange={(event) => setAuditTo(event.target.value)} /></label>
+        </div>
+        <div className="admin-audit-toolbar">
+          <span className="admin-audit-count">{filteredAuditLogs.length} of {(data || []).length} entries</span>
+          <div className="admin-audit-actions">
+            <button type="button" className="admin-action-button" disabled={loading} onClick={refresh}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+            <button type="button" className="admin-action-button" disabled={!filteredAuditLogs.length} onClick={() => downloadAuditCsv(filteredAuditLogs)}>Export visible rows as CSV</button>
+          </div>
+        </div>
       </div>
       <AdminTable
         headers={['Action', 'Actor', 'Target', 'Details', 'Time']}
