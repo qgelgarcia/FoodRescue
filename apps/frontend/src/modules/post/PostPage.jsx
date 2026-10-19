@@ -1,11 +1,11 @@
 import { friendlyError } from '../../services/request';
-import React, { useState } from 'react';
-import { PlusCircle, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Camera, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { PlusCircle, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Camera, X, Pencil, Archive } from 'lucide-react';
 import CustomerHeader from '../../components/layout/CustomerHeader';
 import PageShell from '../../components/layout/PageShell';
 
 import { DurationPicker } from '../../components/ui/calamansi/duration-picker';
-import { createFoodPost } from '../../services/food';
+import { archiveFoodPost, createFoodPost, getOwnFoodPosts, updateFoodPost } from '../../services/food';
 import { validateFoodPostDraft } from '../../lib/validation';
 
 export default function PostPage({ userProfile }) {
@@ -18,8 +18,60 @@ export default function PostPage({ userProfile }) {
   const [duration, setDuration] = useState({ hours: 3, minutes: 0 });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [formError, setFormError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [ownPosts, setOwnPosts] = useState([]);
+  const [editingPostId, setEditingPostId] = useState(null);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [postsError, setPostsError] = useState('');
+  const [archivingPostId, setArchivingPostId] = useState(null);
+
+  useEffect(() => {
+    loadOwnPosts();
+  }, []);
+
+  async function loadOwnPosts() {
+    setPostsLoading(true);
+    setPostsError('');
+    try {
+      setOwnPosts(await getOwnFoodPosts());
+    } catch (error) {
+      setPostsError(friendlyError(error));
+    } finally {
+      setPostsLoading(false);
+    }
+  }
+
+  function resetDraft() {
+    setEditingPostId(null);
+    setFoodName('');
+    setDescription('');
+    setCategory('Meals');
+    setQuantity('5');
+    setPickupAddress('');
+    setPhotos([]);
+    setDuration({ hours: 3, minutes: 0 });
+    setFieldErrors({});
+    setFormError('');
+    setSuccess(false);
+  }
+
+  function startEditing(post) {
+    const remainingMinutes = Math.max(15, Math.min(24 * 60, Math.ceil((Date.parse(post.expires_at) - Date.now()) / 60000)));
+    setEditingPostId(post.id);
+    setFoodName(post.food_name);
+    setDescription(post.description || '');
+    setCategory(post.category || 'Meals');
+    setQuantity(String(post.quantity_total));
+    setPickupAddress(post.pickup_address);
+    setPhotos(post.photo_url ? [post.photo_url] : []);
+    setDuration({ hours: Math.floor(remainingMinutes / 60), minutes: remainingMinutes % 60 });
+    setFieldErrors({});
+    setFormError('');
+    setSuccess(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   function clearFieldError(field) {
     setFieldErrors((previous) => {
@@ -79,30 +131,46 @@ export default function PostPage({ userProfile }) {
 
     try {
       const totalHours = (validation.values.duration.hours || 0) + (validation.values.duration.minutes || 0) / 60;
-      const result = await createFoodPost({
+      const draft = {
         foodName: validation.values.foodName,
         description: validation.values.description,
         category: validation.values.category,
         quantity: validation.values.quantity,
         pickupAddress: validation.values.pickupAddress,
         photoUrl: photos[0],
-        expiresHours: totalHours > 0 ? totalHours : 3
-      });
-
-      if (result?.error) throw new Error(result.error);
-
+        expiresHours: totalHours > 0 ? totalHours : 3,
+      };
+      if (editingPostId) {
+        const updated = await updateFoodPost(editingPostId, draft);
+        setOwnPosts((previous) => previous.map((post) => post.id === updated.id ? updated : post));
+        setSuccessMessage('Your listing has been updated.');
+      } else {
+        const result = await createFoodPost(draft);
+        if (result?.error) throw new Error(result.error);
+        setOwnPosts((previous) => [result.post, ...previous]);
+        setSuccessMessage('Food listing posted live! Students on campus can now view and claim it.');
+      }
+      resetDraft();
       setSuccess(true);
-      setFoodName('');
-      setDescription('');
-      setPickupAddress('');
-      setPhotos([]);
-      setQuantity('5');
-      setDuration({ hours: 3, minutes: 0 });
-      setFieldErrors({});
     } catch (error) {
       setFormError(friendlyError(error));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleArchive(post) {
+    if (!window.confirm(`Archive "${post.food_name}"? Existing claim history will be kept.`)) return;
+    setArchivingPostId(post.id);
+    setPostsError('');
+    try {
+      await archiveFoodPost(post.id);
+      setOwnPosts((previous) => previous.filter((item) => item.id !== post.id));
+      if (editingPostId === post.id) resetDraft();
+    } catch (error) {
+      setPostsError(friendlyError(error));
+    } finally {
+      setArchivingPostId(null);
     }
   }
 
@@ -116,7 +184,7 @@ export default function PostPage({ userProfile }) {
         <div className="mb-6">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-[#0c6b20] text-xs font-bold mb-2.5 border border-emerald-200">
             <PlusCircle size={13} />
-            <span>CAMPUS FOOD DONOR HUB</span>
+            <span>{editingPostId ? 'EDIT FOOD LISTING' : 'CAMPUS FOOD DONOR HUB'}</span>
           </div>
           <h1 className="font-['Space_Grotesk'] text-3xl font-extrabold text-[#182019]">
             Share Surplus Food
@@ -136,7 +204,7 @@ export default function PostPage({ userProfile }) {
           <div className="mb-6 p-4 rounded-2xl bg-emerald-600 text-white shadow-md flex items-center justify-between" role="status">
             <div className="flex items-center gap-3">
               <span className="text-xl">🎉</span>
-              <p className="font-bold text-xs">Food listing posted live! Students on campus can now view and claim it.</p>
+              <p className="font-bold text-xs">{successMessage}</p>
             </div>
             <button 
               onClick={() => setSuccess(false)}
@@ -188,6 +256,7 @@ export default function PostPage({ userProfile }) {
                   multiple
                   id="photo-upload"
                   className="hidden"
+                  disabled={Boolean(editingPostId)}
                   onChange={handlePhotoUpload}
                 />
                 
@@ -204,22 +273,27 @@ export default function PostPage({ userProfile }) {
                     {photos.map((src, idx) => (
                       <div key={idx} className="relative size-20 rounded-xl overflow-hidden shadow-sm border border-[#2a382e]/10 group">
                         <img src={src} alt="Upload preview" className="w-full h-full object-cover" />
-                        <button 
-                          type="button" 
-                          onClick={() => removePhoto(idx)} 
-                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-rose-500 transition-colors opacity-0 group-hover:opacity-100"
-                        >
-                          <X size={12} />
-                        </button>
+                        {!editingPostId && (
+                          <button 
+                            type="button" 
+                            onClick={() => removePhoto(idx)} 
+                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
                       </div>
                     ))}
                     
-                    <label htmlFor="photo-upload" className="size-20 rounded-xl border border-dashed border-[#2a382e]/30 flex flex-col items-center justify-center text-[#687066] cursor-pointer hover:bg-emerald-50 hover:text-[#0c6b20] hover:border-emerald-200 shadow-sm transition-colors">
-                      <PlusCircle size={20} />
-                    </label>
+                    {!editingPostId && (
+                      <label htmlFor="photo-upload" className="size-20 rounded-xl border border-dashed border-[#2a382e]/30 flex flex-col items-center justify-center text-[#687066] cursor-pointer hover:bg-emerald-50 hover:text-[#0c6b20] hover:border-emerald-200 shadow-sm transition-colors">
+                        <PlusCircle size={20} />
+                      </label>
+                    )}
                   </div>
                 )}
               </div>
+              {editingPostId && <p className="mt-1 text-[11px] text-[#687066]">Photo stays unchanged while editing.</p>}
               {fieldErrors.photos && <p className="mt-1 text-xs text-rose-700" role="alert">{fieldErrors.photos}</p>}
             </div>
 
@@ -257,9 +331,12 @@ export default function PostPage({ userProfile }) {
                   max="100"
                   value={quantity}
                   onChange={(e) => { setQuantity(e.target.value); clearFieldError('quantity'); }}
+                  readOnly={Boolean(editingPostId)}
+                  aria-describedby={editingPostId ? 'food-quantity-help' : undefined}
                   aria-invalid={Boolean(fieldErrors.quantity)}
                   className="w-full bg-[#fbfdf8] border border-[#2a382e]/20 rounded-2xl px-4 py-2.5 text-xs text-[#182019] focus:outline-none focus:ring-2 focus:ring-[#2c8a38]"
                 />
+                {editingPostId && <p id="food-quantity-help" className="mt-1 text-[11px] text-[#687066]">Quantity is locked while editing to protect existing claims.</p>}
                 {fieldErrors.quantity && <p className="mt-1 text-xs text-rose-700">{fieldErrors.quantity}</p>}
               </div>
             </div>
@@ -331,8 +408,17 @@ export default function PostPage({ userProfile }) {
               disabled={loading || !validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, photos }).isValid}
               className="bg-gradient-to-b from-[#2c8a38] to-[#1c6428] text-white rounded-2xl py-4 px-6 w-full mt-4 font-extrabold text-[15px] shadow-lg transition-all tracking-wide"
             >
-              {loading ? 'Publishing Food Drop...' : 'Publish Food Drop Live'}
+              {loading ? (editingPostId ? 'Saving Changes...' : 'Publishing Food Drop...') : (editingPostId ? 'Save Listing Changes' : 'Publish Food Drop Live')}
             </button>
+            {editingPostId && (
+              <button
+                type="button"
+                onClick={resetDraft}
+                className="w-full rounded-2xl border border-[#2a382e]/20 py-3 text-sm font-bold text-[#4c5b4f]"
+              >
+                Cancel Editing
+              </button>
+            )}
 
           </form>
 
@@ -361,6 +447,35 @@ export default function PostPage({ userProfile }) {
           </aside>
 
         </div>
+
+        <section className="mt-10" aria-labelledby="your-listings-heading">
+          <h2 id="your-listings-heading" className="mb-4 font-['Space_Grotesk'] text-2xl font-extrabold text-[#182019]">Your Active Listings</h2>
+          {postsError && <p className="mb-4 text-sm text-rose-700" role="alert">{postsError}</p>}
+          {postsLoading ? (
+            <p className="text-sm text-[#687066]">Loading your listings...</p>
+          ) : ownPosts.length === 0 ? (
+            <p className="rounded-2xl border border-[#2a382e]/10 bg-white p-5 text-sm text-[#687066]">You have no active listings to manage.</p>
+          ) : (
+            <ul className="space-y-3">
+              {ownPosts.map((post) => (
+                <li key={post.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#2a382e]/10 bg-white p-4">
+                  <div>
+                    <h3 className="font-bold text-[#182019]">{post.food_name}</h3>
+                    <p className="text-xs text-[#687066]">{post.quantity_remaining} of {post.quantity_total} portions remaining · {post.pickup_address}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => startEditing(post)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#2a382e]/15 px-3 text-xs font-bold text-[#182019]">
+                      <Pencil size={13} /> Edit
+                    </button>
+                    <button type="button" disabled={archivingPostId === post.id} onClick={() => handleArchive(post)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-rose-200 px-3 text-xs font-bold text-rose-700 disabled:opacity-50">
+                      <Archive size={13} /> {archivingPostId === post.id ? 'Archiving...' : 'Archive'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
       </main>
 
