@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useHistory, useLocation } from 'react-router-dom';
 import SignOutButton from '../../components/auth/SignOutButton';
+import { getAdminActivityLogs, recordAdminActivity } from '../../services/admin-logs';
 
 const ADMIN_NAV = [
   { path: '/admin/dashboard', label: 'Dashboard' },
@@ -23,26 +24,67 @@ const DEMO_POSTS = [
   { title: 'Warm Artisan Croissants & Danishes', category: 'Bakery', status: 'active', quantity: '6 / 18' },
 ];
 
-const DEMO_LOGS = [
-  { action: 'Admin dashboard opened', actor: 'Campus Administrator', time: 'Today' },
-  { action: 'Role enforcement checked', actor: 'System', time: 'Today' },
-];
-
 export default function AdminDashboard({ userProfile }) {
   const history = useHistory();
   const location = useLocation();
   const [broadcast, setBroadcast] = useState('');
   const [broadcastNotice, setBroadcastNotice] = useState('');
+  const [broadcastSaving, setBroadcastSaving] = useState(false);
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState('');
   const activeSection = location.pathname.split('/').pop() || 'dashboard';
+  const activeSectionLabel = ADMIN_NAV.find((item) => item.path.endsWith(`/${activeSection}`))?.label || 'Dashboard';
+
+  useEffect(() => {
+    if (!userProfile?.id) return undefined;
+
+    let cancelled = false;
+    const action = `Viewed ${activeSectionLabel}`;
+
+    if (activeSection !== 'logs') {
+      recordAdminActivity(userProfile, action).catch(() => {});
+      return undefined;
+    }
+
+    setLogsLoading(true);
+    setLogsError('');
+    (async () => {
+      try {
+        await recordAdminActivity(userProfile, action);
+      } catch {
+        if (!cancelled) setLogsError('Could not record this visit. Check the admin log database setup.');
+      }
+
+      try {
+        const logs = await getAdminActivityLogs();
+        if (!cancelled) setActivityLogs(logs);
+      } catch {
+        if (!cancelled) setLogsError('Could not load activity logs. Apply the admin log migration and try again.');
+      } finally {
+        if (!cancelled) setLogsLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [activeSection, activeSectionLabel, userProfile]);
 
 
-  function handleBroadcast(event) {
+  async function handleBroadcast(event) {
     event.preventDefault();
     const message = broadcast.trim();
-    if (!message || message.length > 1000) return;
+    if (!message || message.length > 1000 || broadcastSaving) return;
 
-    setBroadcastNotice('Broadcast prepared for the next notification service step.');
-    setBroadcast('');
+    setBroadcastSaving(true);
+    try {
+      await recordAdminActivity(userProfile, 'Prepared campus broadcast');
+      setBroadcastNotice('Broadcast prepared and recorded in Activity Logs. It has not been sent.');
+      setBroadcast('');
+    } catch {
+      setBroadcastNotice('Could not record this action. The announcement has not been sent.');
+    } finally {
+      setBroadcastSaving(false);
+    }
   }
 
   function renderDashboard() {
@@ -149,7 +191,7 @@ export default function AdminDashboard({ userProfile }) {
             required
           />
           <small id="broadcast-help">Enter an announcement, up to 1,000 characters.</small>
-          <button type="submit" disabled={!broadcast.trim() || broadcast.trim().length > 1000} className="btn-primary admin-action-button">Prepare Broadcast</button>
+          <button type="submit" disabled={broadcastSaving || !broadcast.trim() || broadcast.trim().length > 1000} className="btn-primary admin-action-button">{broadcastSaving ? 'Recording…' : 'Prepare Broadcast'}</button>
         </form>
       </AdminSection>
     );
@@ -157,16 +199,23 @@ export default function AdminDashboard({ userProfile }) {
 
   function renderLogs() {
     return (
-      <AdminSection title="Activity Logs" description="Review the actions recorded by the admin interface.">
-        <AdminTable headers={['Action', 'Actor', 'Time']}>
-          {DEMO_LOGS.map((log) => (
-            <tr key={`${log.action}-${log.time}`}>
-              <td>{log.action}</td>
-              <td>{log.actor}</td>
-              <td>{log.time}</td>
-            </tr>
-          ))}
-        </AdminTable>
+      <AdminSection title="Activity Logs" description="Review recent admin page visits and prepared announcements.">
+        {logsError && <p className="admin-feedback" role="alert">{logsError}</p>}
+        {logsLoading ? (
+          <div className="admin-empty-state" role="status">Loading activity logs…</div>
+        ) : activityLogs.length ? (
+          <AdminTable headers={['Action', 'Actor', 'Time']}>
+            {activityLogs.map((log) => (
+              <tr key={log.id}>
+                <td>{log.action}</td>
+                <td>{log.actor || 'Former admin'}</td>
+                <td>{new Date(log.created_at).toLocaleString()}</td>
+              </tr>
+            ))}
+          </AdminTable>
+        ) : (
+          <div className="admin-empty-state">No activity recorded yet.</div>
+        )}
       </AdminSection>
     );
   }
