@@ -46,7 +46,7 @@ export default function CalamansiFoodCard({ post, userProfile, onClaimSuccess, p
 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [photoDirection, setPhotoDirection] = useState(1);
-  const canClaim = userProfile?.status === 'active';
+  const canClaim = userProfile?.status === 'active' && post.donor_id !== userProfile?.id && !post.is_sample;
 
   function reportTarget(type, id, label) {
     setIsModalOpen(false);
@@ -227,7 +227,7 @@ export default function CalamansiFoodCard({ post, userProfile, onClaimSuccess, p
                 ) : claimedNotice ? (
                   <>
                     <Check size={16} />
-                    <span>Pass Issued!</span>
+                    <span>Request Sent!</span>
                   </>
                 ) : (
                   <>
@@ -237,7 +237,7 @@ export default function CalamansiFoodCard({ post, userProfile, onClaimSuccess, p
                 )}
               </button>
             </div>
-            {!canClaim && <p className="mt-3 text-xs font-semibold text-amber-800">Your account cannot start a new pickup. You can still finish existing pickups and submit reports.</p>}
+            {!canClaim && <p className="mt-3 text-xs font-semibold text-amber-800">{post.is_sample ? 'Sample listing — preview only.' : post.donor_id === userProfile?.id ? 'This is your listing. Review requests in My Claims → Donor Requests.' : 'Your account cannot start a new pickup. You can still finish existing pickups and submit reports.'}</p>}
             {claimError && <p className="mt-3 text-xs font-semibold text-rose-700" role="alert">{claimError}</p>}
           </div>
         </article>
@@ -343,7 +343,7 @@ export default function CalamansiFoodCard({ post, userProfile, onClaimSuccess, p
                   </div>
                   <div>
                     <h4 className="font-bold text-[#182019] text-sm">Pickup Instructions</h4>
-                    <p className="text-xs text-[#4c5b4f] mt-0.5">{post.is_sample ? 'This is a sample listing. No real pickup is available.' : 'Show your claim pass at the counter to collect your rescue.'}</p>
+                    <p className="text-xs text-[#4c5b4f] mt-0.5">{post.is_sample ? 'This is a sample listing. No real pickup is available.' : 'Wait for donor acceptance, then present your QR code or manual code for the donor to verify pickup.'}</p>
                   </div>
                 </div>
 

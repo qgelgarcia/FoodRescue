@@ -52,7 +52,8 @@ export default function HomeFeed({ userProfile }) {
       setTimeout(() => setClaimToast(null), 5000);
       return;
     }
-    setClaimToast(`Claimed ${claim.quantity}x ${claim.post_title}! Check the top capsule for your pickup code.`);
+    setClaimToast(`Requested ${claim.quantity}x ${claim.post_title}. Your portions are reserved while the donor reviews your request.`);
+    fetchPosts();
     setTimeout(() => setClaimToast(null), 5000);
   }
 

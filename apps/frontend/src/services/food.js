@@ -1,6 +1,7 @@
 import { DEFAULT_POSTS } from './sample-food';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { readStoredArray, validateClaimQuantity } from '../lib/validation';
+import { ClaimWorkflowError, claimRequestError } from '../lib/claim-inputs';
 
 
 const LOCAL_STORAGE_CLAIMS_KEY = 'foodrescue_claims_v1';
@@ -25,10 +26,11 @@ export async function getFoodPosts() {
       .from('food_posts')
       .select('*, donor:donor_id(full_name, phone)')
       .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
     if (error) throw error;
     if (!Array.isArray(data)) throw new Error('bad response');
-    if (data.length > 0 || !import.meta.env.DEV) return data;
+    return data;
   }
 
   // Load any locally created posts merged with defaults
@@ -203,6 +205,10 @@ export async function claimFoodPost(post, portionCount = 1) {
   const validationError = validateClaimQuantity(post, portionCount);
   if (validationError) throw new Error(validationError);
 
+  if (!isSupabaseConfigured() || post.is_sample) {
+    throw new ClaimWorkflowError('Sample listings are previews only. Sign in and choose a real listing to request food.');
+  }
+
   if (isSupabaseConfigured() && !post.is_sample) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) throw new Error('Please sign in before claiming food.');
@@ -213,14 +219,14 @@ export async function claimFoodPost(post, portionCount = 1) {
       qty: portionCount,
     });
 
-    if (error) throw new Error(error.message);
+    if (error) throw claimRequestError(error);
 
     const created = Array.isArray(data) ? data[0] : data;
-    if (!created?.claim_id || !created?.claim_code) throw new Error('The pickup pass was not returned by the server.');
+    if (!created?.claim_id) throw new Error('The claim was not returned by the server.');
 
     const claimRecord = {
       id: created.claim_id,
-      claim_code: created.claim_code,
+      claim_code: null,
       post_id: post.id,
       post_title: post.food_name,
       category: post.category,
@@ -229,41 +235,13 @@ export async function claimFoodPost(post, portionCount = 1) {
       donor_name: post.donor?.full_name || 'Campus Dining',
       claimed_at: new Date().toISOString(),
       expires_at: post.expires_at,
-      status: 'ready_for_pickup',
+      status: 'pending',
       image: post.photo_url,
     };
     window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: claimRecord }));
     return claimRecord;
   }
 
-  const claimRecord = {
-    id: 'claim-' + Date.now().toString(36),
-    claim_code: `FR-${Math.floor(1000 + Math.random() * 9000)}`,
-    post_id: post.id,
-    post_title: post.food_name,
-    category: post.category,
-    quantity: portionCount,
-    location: post.pickup_address,
-    donor_name: post.donor?.full_name || 'Campus Dining',
-    claimed_at: new Date().toISOString(),
-    expires_at: post.expires_at,
-    status: 'ready_for_pickup', // ready_for_pickup -> picked_up -> completed
-    is_sample: true,
-    image: post.photo_url
-  };
-
-  // Persist locally
-  const claims = readStoredArray(LOCAL_STORAGE_CLAIMS_KEY);
-  claims.unshift(claimRecord);
-  localStorage.setItem(LOCAL_STORAGE_CLAIMS_KEY, JSON.stringify(claims));
-
-  const inventory = readStoredObject(LOCAL_STORAGE_INVENTORY_KEY);
-  inventory[post.id] = Number(post.quantity_remaining) - portionCount;
-  localStorage.setItem(LOCAL_STORAGE_INVENTORY_KEY, JSON.stringify(inventory));
-
-  // Dispatch event for UI reactivity
-  window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: claimRecord }));
-  return claimRecord;
 }
 
 /**
@@ -274,7 +252,7 @@ export async function getMyFoodClaims() {
   if (!isSupabaseConfigured()) return sampleClaims;
 
   const { data, error } = await supabase.rpc('get_my_food_claims');
-  if (error) throw error;
+  if (error) throw claimRequestError(error);
   return [...(Array.isArray(data) ? data.map((claim) => ({ ...claim, is_sample: false })) : []), ...sampleClaims]
     .sort((a, b) => new Date(b.claimed_at) - new Date(a.claimed_at));
 }
@@ -283,18 +261,5 @@ export async function getMyFoodClaims() {
  * Mark a claim as completed / picked up
  */
 export async function completeClaim(claim) {
-  if (isSupabaseConfigured() && !claim.is_sample) {
-    const { error } = await supabase.rpc('complete_food_claim', {
-      p_claim_id: claim.id,
-      p_pickup_code: claim.claim_code,
-    });
-    if (error) throw error;
-    window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: { id: claim.id, status: 'picked_up' } }));
-    return;
-  }
-
-  const claims = readStoredArray(LOCAL_STORAGE_CLAIMS_KEY);
-  const updated = claims.map((c) => (c.id === claim.id ? { ...c, status: 'picked_up' } : c));
-  localStorage.setItem(LOCAL_STORAGE_CLAIMS_KEY, JSON.stringify(updated));
-  window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: { id: claim.id, status: 'picked_up' } }));
+  throw new ClaimWorkflowError('Only the donor can confirm pickup. Present your accepted claim’s QR code or manual code to the donor.');
 }

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-import { getMyFoodClaims, completeClaim } from '../../services/food';
+import { getMyFoodClaims } from '../../services/food';
 import { getMyNotifications, markNotificationRead } from '../../services/notifications';
 
 export default function CustomerHeader({ active, userProfile }) {
@@ -29,7 +29,13 @@ export default function CustomerHeader({ active, userProfile }) {
     loadClaims();
     const handleUpdate = () => loadClaims();
     window.addEventListener('foodrescue:claim_updated', handleUpdate);
-    return () => window.removeEventListener('foodrescue:claim_updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    const timer = setInterval(() => { if (!document.hidden) loadClaims(); }, 15000);
+    return () => {
+      window.removeEventListener('foodrescue:claim_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      clearInterval(timer);
+    };
   }, []);
 
   async function loadNotifications() {
@@ -60,7 +66,7 @@ export default function CustomerHeader({ active, userProfile }) {
   async function loadClaims() {
     try {
       const claims = await getMyFoodClaims();
-      setActiveClaims(claims.filter((c) => c.status === 'ready_for_pickup'));
+      setActiveClaims(claims.filter((c) => !c.is_sample && ['pending', 'accepted'].includes(c.status) && new Date(c.expires_at).getTime() > Date.now()));
       setPickupError('');
     } catch (error) {
       setPickupError(error.message || 'Could not load your active pickup.');
@@ -68,18 +74,6 @@ export default function CustomerHeader({ active, userProfile }) {
   }
 
   const latestClaim = activeClaims[0];
-
-  async function handleMarkPickedUp(e, claim) {
-    e.stopPropagation();
-    setPickupError('');
-    try {
-      await completeClaim(claim);
-      setIsPickupModalOpen(false);
-      await loadClaims();
-    } catch (error) {
-      setPickupError(error.message || 'Could not complete this pickup.');
-    }
-  }
 
   return (
     <>
@@ -114,7 +108,7 @@ export default function CustomerHeader({ active, userProfile }) {
               >
                 <Ticket size={14} className="text-[#2c8a38] hidden sm:block" />
                 <Ticket size={16} className="text-[#2c8a38] sm:hidden" />
-                <span className="text-xs font-bold text-[#182019] hidden sm:inline">Active Pickup: {latestClaim.claim_code}</span>
+                <span className="text-xs font-bold text-[#182019] hidden sm:inline">{latestClaim.status === 'pending' ? 'Awaiting donor' : 'Accepted pickup'}</span>
                 <span className="size-2.5 rounded-full bg-emerald-500 animate-pulse" />
               </button>
             )}
@@ -187,8 +181,8 @@ export default function CustomerHeader({ active, userProfile }) {
                   <Ticket size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-[#687066] uppercase tracking-wide">Active Pass</p>
-                <p className="text-sm font-extrabold text-[#182019] font-mono">{latestClaim.claim_code || 'Pass unavailable'}</p>
+                  <p className="text-xs font-bold text-[#687066] uppercase tracking-wide">Food request</p>
+                  <p className="text-sm font-extrabold text-[#182019]">{latestClaim.status === 'pending' ? 'Waiting for donor approval' : 'Accepted by donor'}</p>
                 </div>
               </div>
 
@@ -200,21 +194,13 @@ export default function CustomerHeader({ active, userProfile }) {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#4c5b4f]">Quantity: <b className="text-[#182019]">{latestClaim.quantity} portion(s)</b></span>
                   <span className="text-[#2c8a38] font-bold flex items-center gap-1">
-                    <Clock size={14} /> Ready
+                    <Clock size={14} /> {latestClaim.status === 'pending' ? 'Pending' : 'Accepted'}
                   </span>
                 </div>
               </div>
 
               <div className="flex gap-2.5">
                 {pickupError && <p className="text-xs text-rose-700" role="alert">{pickupError}</p>}
-                {latestClaim.claim_code && <button
-                  type="button"
-                  onClick={(e) => handleMarkPickedUp(e, latestClaim)}
-                  className="flex-1 py-2.5 px-4 bg-[#2c8a38] text-white rounded-2xl font-extrabold text-sm hover:bg-[#23702d] transition-colors shadow-sm flex items-center justify-center gap-2"
-                >
-                  <CheckCircle2 size={16} />
-                  Mark Picked Up
-                </button>}
                 <button
                   type="button"
                   onClick={() => {

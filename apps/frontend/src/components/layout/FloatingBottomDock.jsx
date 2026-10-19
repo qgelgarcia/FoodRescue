@@ -13,7 +13,7 @@ export default function FloatingBottomDock({ active }) {
   useEffect(() => {
     let mounted = true;
     const load = () => getMyFoodClaims().then((claims) => {
-      if (mounted) setPendingCount(claims.filter((claim) => claim.status === 'ready_for_pickup').length);
+      if (mounted) setPendingCount(claims.filter((claim) => !claim.is_sample && ['pending', 'accepted'].includes(claim.status) && new Date(claim.expires_at).getTime() > Date.now()).length);
     }).catch(() => {});
     load();
     window.addEventListener('foodrescue:claim_updated', load);

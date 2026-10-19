@@ -1,159 +1,204 @@
-import React, { useState, useEffect } from 'react';
-import { Ticket, MapPin, CheckCircle2, Clock, Utensils, ArrowRight } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowRight, ClipboardList, RefreshCw, Ticket } from 'lucide-react';
 import CustomerHeader from '../../components/layout/CustomerHeader';
 import PageShell from '../../components/layout/PageShell';
+import { DonorClaimCard, MyClaimCard } from '../../components/claims/ClaimCard';
+import PickupVerificationPanel from '../../components/claims/PickupVerificationPanel';
+import { decideCancellation, decideClaim, getDonorClaims, getMyClaims, requestCancellation, verifyPickup } from '../../services/claims';
+import { friendlyError } from '../../services/request';
 
-import { getMyFoodClaims, completeClaim } from '../../services/food';
+const REFRESH_MS = 15000;
 
 export default function HistoryPage({ userProfile }) {
-  const [claims, setClaims] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('mine');
+  const [myClaims, setMyClaims] = useState([]);
+  const [donorClaims, setDonorClaims] = useState([]);
+  const [loadingByTab, setLoadingByTab] = useState({ mine: true, donor: true });
+  const [busyAction, setBusyAction] = useState('');
   const [error, setError] = useState('');
-  const [completing, setCompleting] = useState('');
+  const [notice, setNotice] = useState('');
+  const [verificationNeedsRefresh, setVerificationNeedsRefresh] = useState(false);
+  const tabRef = useRef(tab);
+  const requestSequence = useRef({ mine: 0, donor: 0 });
+  const actionInProgress = useRef(false);
+
+  tabRef.current = tab;
+
+  async function loadTab(which, { showLoading = false } = {}) {
+    const sequence = ++requestSequence.current[which];
+    if (showLoading) setLoadingByTab((current) => ({ ...current, [which]: true }));
+
+    try {
+      const data = which === 'mine' ? await getMyClaims() : await getDonorClaims();
+      if (sequence !== requestSequence.current[which]) return false;
+      const rows = Array.isArray(data) ? data : [];
+      if (which === 'mine') setMyClaims(rows);
+      else setDonorClaims(rows);
+      if (tabRef.current === which) setError('');
+      if (which === 'donor') setVerificationNeedsRefresh(false);
+      return true;
+    } catch (cause) {
+      if (sequence === requestSequence.current[which] && tabRef.current === which) setError(friendlyError(cause));
+      return false;
+    } finally {
+      if (sequence === requestSequence.current[which]) {
+        setLoadingByTab((current) => ({ ...current, [which]: false }));
+      }
+    }
+  }
 
   useEffect(() => {
-    loadClaims();
-    const handleUpdate = () => loadClaims();
-    window.addEventListener('foodrescue:claim_updated', handleUpdate);
-    return () => window.removeEventListener('foodrescue:claim_updated', handleUpdate);
+    loadTab(tab, { showLoading: true });
+  }, [tab]);
+
+  useEffect(() => {
+    const refreshVisibleTab = () => {
+      if (document.visibilityState === 'visible') loadTab(tabRef.current);
+    };
+    const handleClaimUpdate = () => loadTab(tabRef.current);
+    const timer = window.setInterval(refreshVisibleTab, REFRESH_MS);
+    window.addEventListener('focus', refreshVisibleTab);
+    window.addEventListener('foodrescue:claim_updated', handleClaimUpdate);
+    document.addEventListener('visibilitychange', refreshVisibleTab);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshVisibleTab);
+      window.removeEventListener('foodrescue:claim_updated', handleClaimUpdate);
+      document.removeEventListener('visibilitychange', refreshVisibleTab);
+    };
   }, []);
 
-  async function loadClaims() {
+  async function runAction(key, successText, operation, optimisticUpdate) {
+    if (actionInProgress.current) return false;
+    actionInProgress.current = true;
+    setBusyAction(key);
+    setError('');
+    setNotice('');
     try {
-      setClaims(await getMyFoodClaims());
-      setError('');
+      const result = await operation();
+      optimisticUpdate?.(result);
+      setNotice(successText);
+      if (key === 'verify-pickup') setVerificationNeedsRefresh(true);
+      const refreshed = await loadTab(tabRef.current);
+      if (!refreshed) {
+        setNotice(`${successText} The list could not refresh, so it may take a moment to show the latest status.`);
+        if (key === 'verify-pickup') setVerificationNeedsRefresh(true);
+      }
+      return true;
     } catch (cause) {
-      setError(cause.message || 'Could not load your pickups.');
+      setError(friendlyError(cause));
+      return false;
     } finally {
-      setLoading(false);
+      actionInProgress.current = false;
+      setBusyAction('');
     }
   }
 
-  async function handleComplete(claim) {
-    setCompleting(claim.id);
-    setError('');
-    try {
-      await completeClaim(claim);
-      await loadClaims();
-    } catch (cause) {
-      setError(cause.message || 'Could not complete this pickup.');
-    } finally {
-      setCompleting('');
-    }
+  function onRequestCancellation(claimId, reason) {
+    return runAction(`cancel-request:${claimId}`, 'Cancellation request sent to the donor.',
+      () => requestCancellation(claimId, reason),
+      () => setMyClaims((rows) => rows.map((claim) => claim.id === claimId
+        ? { ...claim, cancellation_status: 'pending', cancellation_reason: reason }
+        : claim)));
   }
+
+  function onDecideClaim(claimId, accept, reason) {
+    const key = `claim-decision:${claimId}:${accept ? 'accept' : 'reject'}`;
+    return runAction(key, accept ? 'Claim accepted.' : 'Claim rejected.',
+      () => decideClaim(claimId, accept, reason),
+      () => setDonorClaims((rows) => rows.map((claim) => claim.id === claimId
+        ? { ...claim, status: accept ? 'accepted' : 'rejected' }
+        : claim)));
+  }
+
+  function onDecideCancellation(requestId, approve, reason) {
+    const key = `cancellation-decision:${requestId}:${approve ? 'approve' : 'deny'}`;
+    return runAction(key, approve ? 'Cancellation approved. The claim is closed.' : 'Cancellation denied. The claim stays active.',
+      () => decideCancellation(requestId, approve, reason),
+      () => setDonorClaims((rows) => rows.map((claim) => claim.cancellation_request_id === requestId
+        ? {
+            ...claim,
+            status: approve ? 'cancelled' : claim.status,
+            cancellation_status: approve ? 'approved' : 'denied',
+            cancellation_decision_reason: reason,
+          }
+        : claim)));
+  }
+
+  function onVerifyPickup(code) {
+    return runAction('verify-pickup', 'Pickup confirmed.', () => verifyPickup(code), (result) => {
+      const claimId = result?.claim_id || result?.claimId || result?.id;
+      if (claimId) setDonorClaims((rows) => rows.map((claim) => claim.id === claimId ? { ...claim, status: 'picked_up' } : claim));
+    });
+  }
+
+  const currentLoading = loadingByTab[tab];
+  const selectedRows = tab === 'mine' ? myClaims : donorClaims;
+  const liveAcceptedClaims = donorClaims.filter((claim) => !claim.is_sample && claim.status === 'accepted');
+  const hasPendingAcceptedCancellation = liveAcceptedClaims.some((claim) => claim.cancellation_status === 'pending');
 
   return (
     <PageShell>
-      <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
-      <CustomerHeader active="history" userProfile={userProfile} />
+      <div className="relative flex h-full w-full flex-col overflow-y-auto pb-28 font-['DM_Sans',sans-serif]">
+        <CustomerHeader active="history" userProfile={userProfile} />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
-        
-        <div className="mb-8">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-[#0c6b20] text-xs font-bold mb-2.5 border border-emerald-200">
-            <Ticket size={13} />
-            <span>DIGITAL PICKUP PASSES & RECEIPTS</span>
-          </div>
-          <h1 className="font-['Space_Grotesk'] text-3xl font-extrabold text-[#182019]">
-            My Food Claims
-          </h1>
-          <p className="text-xs text-[#4c5b4f] mt-1">
-            Present your digital claim pass to dining staff at pickup locations.
-          </p>
-        </div>
-
-        {error && <p role="alert" className="mb-4 text-sm text-rose-700">{error}</p>}
-
-        {loading ? <div className="bg-white rounded-3xl p-12 text-center border border-[#2a382e]/10 shadow-sm" role="status">Loading your pickups…</div> : claims.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-[#2a382e]/10 shadow-sm">
-            <div className="size-12 rounded-2xl bg-emerald-50 text-[#0c6b20] flex items-center justify-center mx-auto mb-3 border border-emerald-200">
-              <Ticket size={24} />
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-7 sm:py-9">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-bold text-[#0c6b20]">
+                <Ticket size={13} /><span>CLAIMS &amp; PICKUPS</span>
+              </div>
+              <h1 className="font-['Space_Grotesk'] text-3xl font-extrabold text-[#182019]">Claims</h1>
+              <p className="mt-1 max-w-2xl text-sm text-[#536054]">Track your food requests and handle pickup requests for your listings.</p>
             </div>
-            <h3 className="font-bold text-base text-[#182019]">No claim passes yet</h3>
-            <p className="text-xs text-[#687066] mt-1 mb-4">
-              Explore available surplus food drops on campus and rescue your first meal!
-            </p>
-            <a
-              href="/app/home-feed"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2c8a38] text-white rounded-2xl text-xs font-bold shadow-xs hover:bg-[#23702d] transition-colors"
-            >
-              <span>Browse Surplus Feed</span>
-              <ArrowRight size={13} />
-            </a>
+            <button type="button" onClick={() => loadTab(tab, { showLoading: true })} disabled={currentLoading} className="inline-flex items-center gap-2 rounded-xl border border-[#cbd8c5] bg-white px-3.5 py-2.5 text-xs font-bold text-[#354438] shadow-sm hover:bg-[#f5faee] disabled:opacity-55">
+              <RefreshCw size={14} className={currentLoading ? 'animate-spin' : ''} /> Refresh
+            </button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {claims.map((claim) => {
-              const isReady = claim.status === 'ready_for_pickup';
-              const statusLabel = isReady ? 'Ready for Pickup' : claim.status === 'picked_up' ? 'Picked Up' : claim.status;
-              return (
-                <div
-                  key={claim.id}
-                  className={`bg-white rounded-3xl p-6 border shadow-sm transition-all ${
-                    isReady ? 'border-emerald-300 ring-2 ring-emerald-500/15' : 'border-[#2a382e]/10 opacity-85'
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    
-                    <div className="flex items-center gap-4">
-                      {claim.image ? (
-                        <img
-                          src={claim.image}
-                          alt={claim.post_title}
-                          className="size-16 rounded-2xl object-cover"
-                        />
-                      ) : (
-                        <div className="size-16 rounded-2xl bg-emerald-50 text-[#0c6b20] border border-emerald-200 flex items-center justify-center text-xl">
-                          <Utensils size={24} />
-                        </div>
-                      )}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-['Space_Grotesk'] font-bold text-base text-[#182019]">
-                            {claim.post_title}
-                          </h3>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                            isReady ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-neutral-100 text-neutral-600'
-                          }`}>
-                            {isReady ? <><Clock size={10} /> {statusLabel}</> : <><CheckCircle2 size={10} /> {statusLabel}</>}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[#4c5b4f] mt-0.5 flex items-center gap-1">
-                          <MapPin size={11} className="text-[#2c8a38]" /> {claim.location} · <b>{claim.quantity} portion(s)</b>
-                        </p>
-                        <p className="text-[11px] text-[#687066] mt-1">
-                          Claimed: {new Date(claim.claimed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* Claim Pass Code & Action */}
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0 border-[#2a382e]/10">
-                      {isReady && claim.claim_code ? <div className="bg-emerald-50 text-[#0c6b20] border border-emerald-300 font-mono font-extrabold text-sm px-3 py-1.5 rounded-xl tracking-wider">{claim.claim_code}</div>
-                        : isReady ? <span className="text-xs text-rose-700">Pickup pass unavailable</span> : null}
-                      {isReady && claim.claim_code && (
-                        <button
-                          type="button"
-                          disabled={completing === claim.id}
-                          onClick={() => handleComplete(claim)}
-                          className="px-3.5 py-1.5 bg-[#2c8a38] hover:bg-[#23702d] text-white rounded-xl text-xs font-bold transition-colors shadow-2xs flex items-center gap-1"
-                        >
-                          <CheckCircle2 size={12} />
-                          <span>{completing === claim.id ? 'Saving…' : 'Mark Picked Up'}</span>
-                        </button>
-                      )}
-                    </div>
-
-                  </div>
-                </div>
-              );
-            })}
+          <div role="tablist" aria-label="Claim sections" className="mb-5 grid grid-cols-2 rounded-2xl border border-[#dce4d7] bg-white p-1 shadow-sm">
+            <button id="my-claims-tab" type="button" role="tab" aria-selected={tab === 'mine'} aria-controls="my-claims-panel" onClick={() => setTab('mine')} className={`rounded-xl px-3 py-3 text-sm font-bold transition-colors ${tab === 'mine' ? 'bg-[#2c8a38] text-white shadow-sm' : 'text-[#536054] hover:bg-[#f5faee]'}`}>
+              My Claims <span className="ml-1 text-xs opacity-80">({myClaims.length})</span>
+            </button>
+            <button id="donor-requests-tab" type="button" role="tab" aria-selected={tab === 'donor'} aria-controls="donor-requests-panel" onClick={() => setTab('donor')} className={`rounded-xl px-3 py-3 text-sm font-bold transition-colors ${tab === 'donor' ? 'bg-[#2c8a38] text-white shadow-sm' : 'text-[#536054] hover:bg-[#f5faee]'}`}>
+              Donor Requests <span className="ml-1 text-xs opacity-80">({donorClaims.length})</span>
+            </button>
           </div>
-        )}
 
-      </main>
+          {error && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" role="alert">{error}</div>}
+          {notice && <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status">{notice}</div>}
 
-      
+          {tab === 'mine' ? <section id="my-claims-panel" role="tabpanel" aria-labelledby="my-claims-tab">
+            {currentLoading && !selectedRows.length ? <div className="rounded-3xl border border-[#dce4d7] bg-white p-10 text-center text-sm text-[#536054]" role="status">Loading your claims…</div>
+              : selectedRows.length ? <div className="space-y-4">
+                {myClaims.map((claim) => <MyClaimCard key={claim.id} claim={claim} busyAction={busyAction} onRequestCancellation={onRequestCancellation} />)}
+              </div>
+                : <div className="rounded-3xl border border-[#dce4d7] bg-white p-10 text-center shadow-sm">
+                  <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-[#0c6b20]"><Ticket size={23} /></span>
+                  <h2 className="font-['Space_Grotesk'] text-lg font-bold text-[#182019]">No claims yet</h2>
+                  <p className="mx-auto mt-1 max-w-md text-sm text-[#687066]">Browse available surplus food and submit a request. Pending claims reserve portions while the donor reviews them.</p>
+                  <a href="/app/home-feed" className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#2c8a38] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#23702d]"><span>Browse surplus food</span><ArrowRight size={14} /></a>
+                </div>}
+          </section> : <section id="donor-requests-panel" role="tabpanel" aria-labelledby="donor-requests-tab">
+            <div className="mb-4 rounded-2xl border border-[#dce4d7] bg-white p-4 text-xs leading-relaxed text-[#536054]">
+              <div className="flex items-start gap-2.5"><ClipboardList size={17} className="mt-0.5 shrink-0 text-[#2c8a38]" /><p>Accept a request to authorize pickup. Claimants show their QR or printed code; pickup is recorded only after you verify it here.</p></div>
+            </div>
+            {currentLoading && !selectedRows.length ? <div className="rounded-3xl border border-[#dce4d7] bg-white p-10 text-center text-sm text-[#536054]" role="status">Loading donor requests…</div>
+              : donorClaims.length ? <div className="space-y-4">
+                {liveAcceptedClaims.length > 0 && <>
+                  {hasPendingAcceptedCancellation && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950" role="status">An accepted claim with a pending cancellation request cannot be picked up yet. Decide that request on its claim card first; other accepted claims may still be verified.</p>}
+                  <PickupVerificationPanel onVerify={onVerifyPickup} busy={busyAction === 'verify-pickup'} locked={Boolean(busyAction) && busyAction !== 'verify-pickup'} blocked={verificationNeedsRefresh} />
+                </>}
+                {verificationNeedsRefresh && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">Pickup verification succeeded, but the latest claim list could not be loaded. Refresh to unlock another verification.</p>}
+                {donorClaims.map((claim) => <DonorClaimCard key={claim.id} claim={claim} busyAction={busyAction} onDecideClaim={onDecideClaim} onDecideCancellation={onDecideCancellation} />)}
+              </div>
+                : <div className="rounded-3xl border border-[#dce4d7] bg-white p-10 text-center shadow-sm">
+                  <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-[#0c6b20]"><ClipboardList size={23} /></span>
+                  <h2 className="font-['Space_Grotesk'] text-lg font-bold text-[#182019]">No donor requests yet</h2>
+                  <p className="mx-auto mt-1 max-w-md text-sm text-[#687066]">Requests for your listings will appear here, along with their pickup and cancellation status.</p>
+                </div>}
+          </section>}
+        </main>
       </div>
     </PageShell>
   );
