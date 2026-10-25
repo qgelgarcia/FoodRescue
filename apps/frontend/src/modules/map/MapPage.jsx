@@ -82,11 +82,15 @@ export default function MapPage({ userProfile }) {
       markers.set(post.id, marker);
     });
     markerRefs.current = markers;
-    const points = [...markers.values()].map(marker => marker.getLatLng());
-    if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16, animate: false });
     const observer = new ResizeObserver(() => map.invalidateSize({ pan: false }));
     observer.observe(container.current);
-    return () => { clearTimeout(timeout); observer.disconnect(); map.remove(); mapRef.current = null; markerRefs.current.clear(); };
+    return () => {
+      clearTimeout(timeout);
+      observer.disconnect();
+      map.remove();
+      mapRef.current = null;
+      markerRefs.current.clear();
+    };
   }, [loading, posts]);
 
   useEffect(() => {

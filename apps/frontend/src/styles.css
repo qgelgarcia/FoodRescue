@@ -2447,10 +2447,10 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #a3233
 .pickup-map-action { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 14px; background: #fff; border: 1px solid #ccd7c7; color: #285b30; font-weight: 700; }
 .pickup-map-frame { position: relative; border-radius: 24px; overflow: hidden; border: 1px solid #ccd7c7; background: #e8eee3; isolation: isolate; z-index: 0; }
 .pickup-map-canvas { width: 100%; height: min(62vh, 560px); min-height: 340px; font-family: 'DM Sans', sans-serif; }
+.pickup-map-marker { display: grid; place-items: center; background: #2c8a38; color: #fff; border: 3px solid white; border-radius: 50% 50% 50% 8px; box-shadow: 0 3px 12px #18201950; }
 .pickup-map-loading { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 500; background: #fff; padding: 10px 16px; border-radius: 12px; box-shadow: 0 3px 15px #18201920; white-space: nowrap; }
 .pickup-map-notice { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border: 1px solid #dce4d7; border-radius: 14px; background: #fff; color: #456447; margin: 12px 0; font-size: 13px; }
 .pickup-map-notice button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #edf4e8; border-radius: 10px; font-weight: 700; }
-.pickup-map-marker { display: grid; place-items: center; background: #2c8a38; color: #fff; border: 3px solid white; border-radius: 50% 50% 50% 8px; box-shadow: 0 3px 12px #18201950; }
 .pickup-map-canvas .leaflet-control-zoom a { min-width: 44px; min-height: 44px; line-height: 44px; }
 .pickup-map-canvas .leaflet-control-attribution { font-size: 10px; }
 .pickup-popup strong { display: block; font-size: 14px; color: #1c6428; }
