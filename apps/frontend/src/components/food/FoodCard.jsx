@@ -14,6 +14,7 @@ export default function CalamansiFoodCard({ post, userProfile, onClaimSuccess, p
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimedNotice, setClaimedNotice] = useState(false);
   const [claimError, setClaimError] = useState('');
+  const [now, setNow] = useState(Date.now());
   const [localModalOpen, setLocalModalOpen] = useState(false);
   const isModalOpen = previewOpen || localModalOpen;
   function setIsModalOpen(open) {
@@ -48,6 +49,11 @@ export default function CalamansiFoodCard({ post, userProfile, onClaimSuccess, p
   const [photoDirection, setPhotoDirection] = useState(1);
   const canClaim = userProfile?.status === 'active';
 
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
   function reportTarget(type, id, label) {
     setIsModalOpen(false);
     history.push('/app/reports', { reportTarget: { type, id, label } });
@@ -73,7 +79,6 @@ export default function CalamansiFoodCard({ post, userProfile, onClaimSuccess, p
   };
   // Time remaining calculation
   const expiresAt = new Date(post.expires_at).getTime();
-  const now = Date.now();
   const diffMinutes = Math.max(0, Math.floor((expiresAt - now) / (60 * 1000)));
   const hoursLeft = Math.floor(diffMinutes / 60);
   const minsLeft = diffMinutes % 60;

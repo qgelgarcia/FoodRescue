@@ -36,18 +36,24 @@ export default function MapPage({ userProfile }) {
     setLoading(true);
     setError('');
     getFoodPosts().then(data => { if (active) setPosts(data); })
-      .catch(reason => { if (active) setError(friendlyError(reason)); })
+      .catch(reason => { if (active) { setPosts([]); setError(friendlyError(reason)); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [revision]);
 
   useEffect(() => {
+    const refresh = () => setRevision(value => value + 1);
+    window.addEventListener('foodrescue:posts_updated', refresh);
+    return () => window.removeEventListener('foodrescue:posts_updated', refresh);
+  }, []);
+
+  useEffect(() => {
     if (loading || !container.current) return;
-    const map = L.map(container.current, { scrollWheelZoom: false }).setView([14.5995, 120.9842], 13);
+    const map = L.map(container.current, { scrollWheelZoom: false }).setView([14.6256536, 121.061989], 15);
     mapRef.current = map;
     setTilesLoading(true);
     setTileError(false);
-    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const tiles = L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     });

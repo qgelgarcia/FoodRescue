@@ -1,12 +1,19 @@
-import { friendlyError } from '../../services/request';
-import React, { useEffect, useState } from 'react';
+  import { friendlyError } from '../../services/request';
+import React, { useEffect, useRef, useState } from 'react';
 import { PlusCircle, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Camera, X, Pencil, Archive } from 'lucide-react';
 import CustomerHeader from '../../components/layout/CustomerHeader';
 import PageShell from '../../components/layout/PageShell';
 
 import { DurationPicker } from '../../components/ui/calamansi/duration-picker';
-import { archiveFoodPost, createFoodPost, getOwnFoodPosts, updateFoodPost } from '../../services/food';
+import { archiveFoodPost, createFoodPost, getOwnFoodPosts, removeFoodPhoto, updateFoodPost, uploadFoodPhoto } from '../../services/food';
 import { validateFoodPostDraft } from '../../lib/validation';
+import PickupLocationPicker from './PickupLocationPicker';
+
+function postActionError(error) {
+  const message = String(error?.message || '');
+  if (/^(Choose|Enter|Add|Food name|Description|Category|Portions|Pickup|This listing|A cancellation|Explain the cancellation|Photo upload|Could not remove)/.test(message)) return message;
+  return friendlyError(error);
+}
 
 export default function PostPage({ userProfile }) {
   const [foodName, setFoodName] = useState('');
@@ -14,7 +21,11 @@ export default function PostPage({ userProfile }) {
   const [category, setCategory] = useState('Meals');
   const [quantity, setQuantity] = useState('5');
   const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupLat, setPickupLat] = useState(null);
+  const [pickupLng, setPickupLng] = useState(null);
   const [photos, setPhotos] = useState([]);
+  const [photoFile, setPhotoFile] = useState(null);
+  const photoPreview = useRef(null);
   const [duration, setDuration] = useState({ hours: 3, minutes: 0 });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -26,6 +37,8 @@ export default function PostPage({ userProfile }) {
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsError, setPostsError] = useState('');
   const [archivingPostId, setArchivingPostId] = useState(null);
+  const [cancellingPostId, setCancellingPostId] = useState(null);
+  const [cancellationReason, setCancellationReason] = useState('');
 
   useEffect(() => {
     loadOwnPosts();
@@ -44,13 +57,18 @@ export default function PostPage({ userProfile }) {
   }
 
   function resetDraft() {
+    if (photoPreview.current) URL.revokeObjectURL(photoPreview.current);
+    photoPreview.current = null;
     setEditingPostId(null);
     setFoodName('');
     setDescription('');
     setCategory('Meals');
     setQuantity('5');
     setPickupAddress('');
+    setPickupLat(null);
+    setPickupLng(null);
     setPhotos([]);
+    setPhotoFile(null);
     setDuration({ hours: 3, minutes: 0 });
     setFieldErrors({});
     setFormError('');
@@ -65,7 +83,10 @@ export default function PostPage({ userProfile }) {
     setCategory(post.category || 'Meals');
     setQuantity(String(post.quantity_total));
     setPickupAddress(post.pickup_address);
+    setPickupLat(post.pickup_lat ?? null);
+    setPickupLng(post.pickup_lng ?? null);
     setPhotos(post.photo_url ? [post.photo_url] : []);
+    setPhotoFile(null);
     setDuration({ hours: Math.floor(remainingMinutes / 60), minutes: remainingMinutes % 60 });
     setFieldErrors({});
     setFormError('');
@@ -83,26 +104,25 @@ export default function PostPage({ userProfile }) {
   }
 
   const handlePhotoUpload = (e) => {
-    if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files);
-      const invalidFile = selectedFiles.find((file) => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024);
-
-      if (invalidFile) {
-        setFieldErrors((previous) => ({
-          ...previous,
-          photos: 'Photos must be images smaller than 5 MB each.',
-        }));
-        return;
-      }
-
-      const filesArray = selectedFiles.map((file) => URL.createObjectURL(file));
-      setPhotos(prev => [...prev, ...filesArray]);
-      clearFieldError('photos');
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      setFieldErrors(previous => ({ ...previous, photos: 'Choose one JPEG, PNG, or WebP image no larger than 5 MB.' }));
+      return;
     }
+    if (photoPreview.current) URL.revokeObjectURL(photoPreview.current);
+    photoPreview.current = URL.createObjectURL(file);
+    setPhotoFile(file);
+    setPhotos([photoPreview.current]);
+    clearFieldError('photos');
   };
 
-  const removePhoto = (index) => {
-    setPhotos(photos.filter((_, i) => i !== index));
+  const removePhoto = () => {
+    if (photoPreview.current) URL.revokeObjectURL(photoPreview.current);
+    photoPreview.current = null;
+    setPhotoFile(null);
+    setPhotos([]);
     clearFieldError('photos');
   };
 
@@ -115,8 +135,9 @@ export default function PostPage({ userProfile }) {
       category,
       quantity,
       pickupAddress,
+      pickupLat,
+      pickupLng,
       duration,
-      photos,
     });
 
     setFieldErrors(validation.errors);
@@ -129,15 +150,24 @@ export default function PostPage({ userProfile }) {
     setSuccess(false);
     setFormError('');
 
+    let uploadedPhotoPath = null;
     try {
       const totalHours = (validation.values.duration.hours || 0) + (validation.values.duration.minutes || 0) / 60;
+      let photoUrl = photos[0];
+      if (photoFile) {
+        const uploaded = await uploadFoodPhoto(photoFile);
+        uploadedPhotoPath = uploaded.path;
+        photoUrl = uploaded.url;
+      }
       const draft = {
         foodName: validation.values.foodName,
         description: validation.values.description,
         category: validation.values.category,
         quantity: validation.values.quantity,
         pickupAddress: validation.values.pickupAddress,
-        photoUrl: photos[0],
+        pickupLat: validation.values.pickupLat,
+        pickupLng: validation.values.pickupLng,
+        photoUrl,
         expiresHours: totalHours > 0 ? totalHours : 3,
       };
       if (editingPostId) {
@@ -150,29 +180,45 @@ export default function PostPage({ userProfile }) {
         setOwnPosts((previous) => [result.post, ...previous]);
         setSuccessMessage('Food listing posted live! Students on campus can now view and claim it.');
       }
+      uploadedPhotoPath = null;
       resetDraft();
       setSuccess(true);
     } catch (error) {
-      setFormError(friendlyError(error));
+      let cleanupError = '';
+      if (uploadedPhotoPath) {
+        try { await removeFoodPhoto(uploadedPhotoPath); }
+        catch { cleanupError = ' The uploaded image could not be removed; contact support if it remains in your uploads.'; }
+      }
+      setFormError(`${postActionError(error)}${cleanupError}`);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleArchive(post) {
-    if (!window.confirm(`Archive "${post.food_name}"? Existing claim history will be kept.`)) return;
+  function handleArchive(post) {
+    setCancellingPostId(post.id);
+    setCancellationReason('');
+  }
+
+  async function submitCancellation(post) {
     setArchivingPostId(post.id);
     setPostsError('');
     try {
-      await archiveFoodPost(post.id);
-      setOwnPosts((previous) => previous.filter((item) => item.id !== post.id));
+      await archiveFoodPost(post.id, cancellationReason);
+      setOwnPosts(previous => previous.map(item => item.id === post.id
+        ? { ...item, status: 'removed_by_donor', donor_cancel_reason: cancellationReason.trim() }
+        : item));
       if (editingPostId === post.id) resetDraft();
+      setCancellingPostId(null);
     } catch (error) {
-      setPostsError(friendlyError(error));
+      setPostsError(postActionError(error));
     } finally {
       setArchivingPostId(null);
     }
   }
+
+  const editingPost = ownPosts.find(post => post.id === editingPostId);
+  const editLocked = Boolean(editingPost && Number(editingPost.quantity_remaining) < Number(editingPost.quantity_total));
 
   return (
     <PageShell>
@@ -225,7 +271,7 @@ export default function PostPage({ userProfile }) {
           <form noValidate onBlurCapture={(event) => {
             const key = { 'food-name': 'foodName', 'food-description': 'description', 'food-quantity': 'quantity', 'pickup-address': 'pickupAddress', 'food-category': 'category', 'photo-upload': 'photos' }[event.target.id];
             if (!key) return;
-            const errors = validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, photos }).errors;
+            const errors = validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, pickupLat, pickupLng, duration }).errors;
             setFieldErrors(previous => ({ ...previous, [key]: errors[key] }));
           }} aria-busy={loading} onSubmit={handleSubmit} className="md:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/15 shadow-sm space-y-5">
             
@@ -249,18 +295,16 @@ export default function PostPage({ userProfile }) {
 
             <div>
               <label className="block text-xs font-bold text-[#182019] mb-1.5">
-                Display Photos <span className="text-rose-500">*</span>
+                Display Photo <span className="text-[#687066]">(optional)</span>
               </label>
               
               <div className="w-full bg-[#fbfdf8] border border-dashed border-[#2a382e]/30 rounded-2xl p-4 text-center">
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   capture="environment"
-                  multiple
                   id="photo-upload"
                   className="hidden"
-                  disabled={Boolean(editingPostId)}
                   onChange={handlePhotoUpload}
                 />
                 
@@ -270,34 +314,30 @@ export default function PostPage({ userProfile }) {
                       <Camera size={20} />
                     </div>
                     <p className="text-sm font-bold text-[#182019]">Take a photo or upload</p>
-                    <p className="text-xs text-[#687066] mt-1">Show what the food looks like</p>
+                    <p className="text-xs text-[#687066] mt-1">JPEG, PNG, or WebP · up to 5 MB</p>
                   </label>
                 ) : (
                   <div className="flex flex-wrap gap-3">
                     {photos.map((src, idx) => (
                       <div key={idx} className="relative size-20 rounded-xl overflow-hidden shadow-sm border border-[#2a382e]/10 group">
                         <img src={src} alt="Upload preview" className="w-full h-full object-cover" />
-                        {!editingPostId && (
                           <button 
                             type="button" 
-                            onClick={() => removePhoto(idx)} 
+                            aria-label="Remove display photo"
+                            onClick={removePhoto}
                             className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-rose-500 transition-colors opacity-0 group-hover:opacity-100"
                           >
                             <X size={12} />
                           </button>
-                        )}
                       </div>
                     ))}
                     
-                    {!editingPostId && (
-                      <label htmlFor="photo-upload" className="size-20 rounded-xl border border-dashed border-[#2a382e]/30 flex flex-col items-center justify-center text-[#687066] cursor-pointer hover:bg-emerald-50 hover:text-[#0c6b20] hover:border-emerald-200 shadow-sm transition-colors">
-                        <PlusCircle size={20} />
-                      </label>
-                    )}
+                    <label htmlFor="photo-upload" className="size-20 rounded-xl border border-dashed border-[#2a382e]/30 flex flex-col items-center justify-center text-[#687066] cursor-pointer hover:bg-emerald-50 hover:text-[#0c6b20] hover:border-emerald-200 shadow-sm transition-colors">
+                      <Pencil size={18} /><span className="text-[10px]">Replace</span>
+                    </label>
                   </div>
                 )}
               </div>
-              {editingPostId && <p className="mt-1 text-[11px] text-[#687066]">Photo stays unchanged while editing.</p>}
               {fieldErrors.photos && <p className="mt-1 text-xs text-rose-700" role="alert">{fieldErrors.photos}</p>}
             </div>
 
@@ -335,12 +375,12 @@ export default function PostPage({ userProfile }) {
                   max="100"
                   value={quantity}
                   onChange={(e) => { setQuantity(e.target.value); clearFieldError('quantity'); }}
-                  readOnly={Boolean(editingPostId)}
-                  aria-describedby={editingPostId ? 'food-quantity-help' : undefined}
+                  readOnly={editLocked}
+                  aria-describedby={editLocked ? 'food-quantity-help' : undefined}
                   aria-invalid={Boolean(fieldErrors.quantity)}
                   className="w-full bg-[#fbfdf8] border border-[#2a382e]/20 rounded-2xl px-4 py-2.5 text-xs text-[#182019] focus:outline-none focus:ring-2 focus:ring-[#2c8a38]"
                 />
-                {editingPostId && <p id="food-quantity-help" className="mt-1 text-[11px] text-[#687066]">Quantity is locked while editing to protect existing claims.</p>}
+                {editLocked && <p id="food-quantity-help" className="mt-1 text-[11px] text-[#687066]">Quantity is locked after the first claim.</p>}
                 {fieldErrors.quantity && <p className="mt-1 text-xs text-rose-700">{fieldErrors.quantity}</p>}
               </div>
             </div>
@@ -360,6 +400,16 @@ export default function PostPage({ userProfile }) {
                 className="w-full bg-[#fbfdf8] border border-[#2a382e]/20 rounded-2xl px-4 py-2.5 text-xs text-[#182019] focus:outline-none focus:ring-2 focus:ring-[#2c8a38]"
               />
               {fieldErrors.pickupAddress && <p className="mt-1 text-xs text-rose-700">{fieldErrors.pickupAddress}</p>}
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-bold text-[#182019]">Pickup Pin <span className="text-rose-500">*</span></label>
+              <PickupLocationPicker
+                latitude={pickupLat}
+                longitude={pickupLng}
+                onChange={(lat, lng) => { setPickupLat(lat); setPickupLng(lng); clearFieldError('pickupLocation'); }}
+              />
+              {fieldErrors.pickupLocation && <p className="mt-1 text-xs text-rose-700" role="alert">{fieldErrors.pickupLocation}</p>}
             </div>
 
             {/* Liquid Duration Picker with Metaball Split */}
@@ -409,7 +459,7 @@ export default function PostPage({ userProfile }) {
 
             <button
               type="submit"
-              disabled={loading || userProfile?.status !== 'active' || !validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, photos }).isValid}
+              disabled={loading || userProfile?.status !== 'active' || !validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, pickupLat, pickupLng, duration }).isValid}
               className="bg-gradient-to-b from-[#2c8a38] to-[#1c6428] text-white rounded-2xl py-4 px-6 w-full mt-4 font-extrabold text-[15px] shadow-lg transition-all tracking-wide"
             >
               {loading ? (editingPostId ? 'Saving Changes...' : 'Publishing Food Drop...') : (editingPostId ? 'Save Listing Changes' : 'Publish Food Drop Live')}
@@ -453,28 +503,39 @@ export default function PostPage({ userProfile }) {
         </div>
 
         <section className="mt-10" aria-labelledby="your-listings-heading">
-          <h2 id="your-listings-heading" className="mb-4 font-['Space_Grotesk'] text-2xl font-extrabold text-[#182019]">Your Active Listings</h2>
+          <h2 id="your-listings-heading" className="mb-4 font-['Space_Grotesk'] text-2xl font-extrabold text-[#182019]">My Posts</h2>
           {postsError && <p className="mb-4 text-sm text-rose-700" role="alert">{postsError}</p>}
           {postsLoading ? (
             <p className="text-sm text-[#687066]">Loading your listings...</p>
           ) : ownPosts.length === 0 ? (
-            <p className="rounded-2xl border border-[#2a382e]/10 bg-white p-5 text-sm text-[#687066]">You have no active listings to manage.</p>
+            <p className="rounded-2xl border border-[#2a382e]/10 bg-white p-5 text-sm text-[#687066]">You have no posts yet.</p>
           ) : (
             <ul className="space-y-3">
               {ownPosts.map((post) => (
                 <li key={post.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#2a382e]/10 bg-white p-4">
                   <div>
                     <h3 className="font-bold text-[#182019]">{post.food_name}</h3>
-                    <p className="text-xs text-[#687066]">{post.quantity_remaining} of {post.quantity_total} portions remaining · {post.pickup_address}</p>
+                    <p className="text-xs text-[#687066]">{Math.max(0, Number(post.quantity_remaining) || 0)} of {post.quantity_total} portions available · {post.pickup_address}</p>
+                    <p className="mt-1 text-xs font-semibold text-[#4c5b4f]">Status: {Date.parse(post.expires_at) <= Date.now() && post.status === 'active' ? 'Expired' : (post.status || 'unknown').replaceAll('_', ' ')}</p>
+                    {post.donor_cancel_reason && <p className="mt-1 text-xs text-[#687066]">Cancellation: {post.donor_cancel_reason}</p>}
+                    {Number(post.quantity_remaining) < Number(post.quantity_total) && <p className="mt-1 text-xs text-amber-800">Editing locked after first claim.</p>}
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => startEditing(post)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#2a382e]/15 px-3 text-xs font-bold text-[#182019]">
+                    <button type="button" disabled={post.status !== 'active' || Date.parse(post.expires_at) <= Date.now() || Number(post.quantity_remaining) < Number(post.quantity_total)} onClick={() => startEditing(post)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#2a382e]/15 px-3 text-xs font-bold text-[#182019] disabled:opacity-40">
                       <Pencil size={13} /> Edit
                     </button>
-                    <button type="button" disabled={archivingPostId === post.id} onClick={() => handleArchive(post)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-rose-200 px-3 text-xs font-bold text-rose-700 disabled:opacity-50">
-                      <Archive size={13} /> {archivingPostId === post.id ? 'Archiving...' : 'Archive'}
+                    <button type="button" disabled={post.status !== 'active' || archivingPostId === post.id} onClick={() => handleArchive(post)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-rose-200 px-3 text-xs font-bold text-rose-700 disabled:opacity-50">
+                      <Archive size={13} /> {archivingPostId === post.id ? 'Cancelling...' : 'Cancel post'}
                     </button>
                   </div>
+                  {cancellingPostId === post.id && <form className="w-full space-y-2" onSubmit={event => { event.preventDefault(); submitCancellation(post); }}>
+                    <label className="block text-xs font-semibold text-[#182019]" htmlFor={`cancel-reason-${post.id}`}>Why are you cancelling this post? (5 to 500 characters)</label>
+                    <textarea id={`cancel-reason-${post.id}`} required minLength={5} maxLength={500} value={cancellationReason} onChange={event => setCancellationReason(event.target.value)} className="w-full rounded-xl border border-[#2a382e]/20 p-3 text-sm" />
+                    <div className="flex gap-2">
+                      <button type="submit" disabled={Boolean(archivingPostId)} className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white">Confirm cancellation</button>
+                      <button type="button" onClick={() => setCancellingPostId(null)} className="rounded-xl border px-4 py-2 text-xs font-bold">Keep post</button>
+                    </div>
+                  </form>}
                 </li>
               ))}
             </ul>

@@ -8,8 +8,9 @@ const validDraft = {
   category: 'Meals',
   quantity: '12',
   pickupAddress: 'Student Union, counter 2',
+  pickupLat: 14.6,
+  pickupLng: 120.98,
   duration: { hours: 3, minutes: 0 },
-  photos: ['data:image/png;base64,preview'],
 };
 
 test('accepts a complete food post draft and normalizes values', () => {
@@ -28,7 +29,7 @@ test('rejects invalid food post fields', () => {
     category: 'Invalid',
     quantity: '0',
     duration: { hours: 0, minutes: 5 },
-    photos: [],
+    pickupLat: null,
   });
 
   assert.equal(result.isValid, false);
@@ -36,7 +37,11 @@ test('rejects invalid food post fields', () => {
   assert.ok(result.errors.category);
   assert.ok(result.errors.quantity);
   assert.ok(result.errors.duration);
-  assert.ok(result.errors.photos);
+  assert.ok(result.errors.pickupLocation);
+});
+
+test('food photos are optional', () => {
+  assert.equal(validateFoodPostDraft(validDraft).isValid, true);
 });
 
 test('rejects a claim larger than the remaining quantity', () => {

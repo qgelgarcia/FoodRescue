@@ -7,8 +7,9 @@ export function validateFoodPostDraft({
   category,
   quantity,
   pickupAddress,
+  pickupLat,
+  pickupLng,
   duration,
-  photos,
 } = {}) {
   const errors = {};
   const cleanFoodName = String(foodName || '').trim();
@@ -45,14 +46,16 @@ export function validateFoodPostDraft({
     errors.pickupAddress = 'Pickup instructions must be 240 characters or fewer.';
   }
 
+  if (pickupLat == null || pickupLng == null
+      || !Number.isFinite(Number(pickupLat)) || Number(pickupLat) < -90 || Number(pickupLat) > 90
+      || !Number.isFinite(Number(pickupLng)) || Number(pickupLng) < -180 || Number(pickupLng) > 180) {
+    errors.pickupLocation = 'Choose the pickup point on the map.';
+  }
+
   if (!Number.isInteger(hours) || hours < 0 || hours > 24 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
     errors.duration = 'Choose a valid duration.';
   } else if (totalMinutes < 15 || totalMinutes > 24 * 60) {
     errors.duration = 'Pickup duration must be between 15 minutes and 24 hours.';
-  }
-
-  if (!Array.isArray(photos) || photos.length === 0) {
-    errors.photos = 'Upload at least one display photo.';
   }
 
   return {
@@ -64,6 +67,8 @@ export function validateFoodPostDraft({
       category,
       quantity: numericQuantity,
       pickupAddress: cleanAddress,
+      pickupLat: Number(pickupLat),
+      pickupLng: Number(pickupLng),
       duration: { hours, minutes },
     },
   };

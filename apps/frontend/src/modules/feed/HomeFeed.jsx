@@ -30,6 +30,9 @@ export default function HomeFeed({ userProfile }) {
 
   useEffect(() => {
     fetchPosts();
+    const refresh = () => fetchPosts();
+    window.addEventListener('foodrescue:posts_updated', refresh);
+    return () => window.removeEventListener('foodrescue:posts_updated', refresh);
   }, []);
 
   async function fetchPosts() {
