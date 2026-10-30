@@ -1777,6 +1777,12 @@ ion-tab-bar {
   text-decoration: underline;
 }
 
+.auth-recovery-link {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+}
+
 /* Shared accessibility and Ionic composition rules for the active React UI. */
 button,
 a {
@@ -2167,6 +2173,28 @@ ion-header.member-header {
   color: #a52828;
 }
 
+.member-notification-see-all {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-top: 1px solid #edf1ea;
+  background: transparent;
+  color: #17652a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.member-notification-see-all:hover { background: #f1f8ed; }
+
+.notification-focused-claim {
+  border-radius: 24px;
+  outline: 3px solid var(--theme-accent);
+  outline-offset: 4px;
+}
+
 .member-reports-list {
   margin-top: 28px;
 }
@@ -2525,6 +2553,8 @@ ion-content.foodrescue-content { --color: var(--theme-ink); color: var(--theme-i
 :root[data-theme="dark"] :is(.member-notification-panel, .member-notification-heading, .member-notification-button) { background: var(--theme-surface); color: var(--theme-ink); border-color: var(--theme-line); }
 :root[data-theme="dark"] .member-notification-item.unread { background: #1d3624; }
 :root[data-theme="dark"] .member-notification-item small { color: var(--theme-muted); }
+:root[data-theme="dark"] .member-notification-see-all { border-color: var(--theme-line); color: var(--theme-accent); }
+:root[data-theme="dark"] .member-notification-see-all:hover { background: var(--theme-raised); }
 :root[data-theme="dark"] :is(.link-btn, .btn-toggle-eye, .password-input-wrap button) { color: var(--theme-accent); }
 :root[data-theme="dark"] :is(.field-error, [class~="text-rose-700"], [class~="text-rose-800"]) { color: #ffb5ac; }
 :root[data-theme="dark"] [aria-invalid="true"] { border-color: #df887f !important; }

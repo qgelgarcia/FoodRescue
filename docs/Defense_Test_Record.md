@@ -42,6 +42,14 @@ Fill actual donor device, claimant device, Android versions, app build version a
 
 ## Device record
 
+### October 30 release-readiness update
+
+- Full regression suite: 65/65 passed, including exact notification destinations, recipient isolation, target immutability and retained identity after report deletion. Final changed SQL harness rerun: 8/8 passed.
+- Lint, shared/backend/frontend production builds and dependency audit passed (zero known vulnerabilities).
+- New notification destination migration applied to linked project `tbmmqimhhazbuazetdwa`; installation and active expiration Cron verified. This does not count as cross-device acceptance.
+- `adb devices` returned no attached devices. Recovery email delivery and hosted Auth redirect settings remain pending; exact setup and test-account steps are in `Recovery_Release_Acceptance_2026-10-30.md`.
+- Pickup-map redesign is documented in `Pickup_Map_Redesign_Plan_2026-10-30.md`; the map interface has not been redesigned in this package.
+
 - Donor device / Android / build: pending.
 - Claimant device / Android / build: pending.
 - Desktop browser / hosted URL: pending (deployment files only).

@@ -53,4 +53,12 @@ Manual stop deletes the point. Claim terminal transitions delete it in the same 
 
 ## Profile and metrics
 
+Account recovery uses a dedicated public `/forgot-password` request screen and `/reset-password` screen. Password updates require a recovery event for the current Supabase session identity; ordinary signed-in sessions are rejected. Passive same-session refresh/focus preserves recovery authorization. Native recovery uses its own exact PKCE callback, separate from Google sign-in. Requests use non-disclosing success copy and do not claim success after network/service failure.
+
+Profile photos store a durable owner-scoped reference in `profiles.avatar_url`. Uploaded avatars live in a private bucket; signed URLs are refreshed for display, and existing external provider avatars remain supported. Replacement reconciles uncertain profile writes before cleanup. Only unreferenced objects belonging to the signed-in member are removed. Header updates follow the existing profile-update event.
+
+The full notification center at `/app/notifications` provides All/Unread views and composite `created_at,id` cursor pagination. Refresh reconciles the loaded ID subset and newer arrivals while preserving the older-page cursor. Read operations remain recipient-scoped and share refresh hints with the header. Related-post links open authorized history context with an unavailable state when no accessible match exists. No claim or report ID is inferred from message text.
+
+The release-readiness update adds `related_claim_id` and `related_report_id` for canonical server-produced destinations. Exact references take precedence over legacy post links. These UUIDs retain identity after deletion so a deleted claim/report reaches the unavailable state instead of another claim on the same listing. Claim creation/decision/cancellation, departure, pickup confirmation and report review/resolution producers stamp the known exact ID. Bulk listing closure and historical notices keep the post fallback. Recipients can update only `is_read`; destination reads use the existing authorized claim/report endpoints. No target content is fetched merely because a UUID appears in a notice.
+
 `updateOwnProfile({ fullName, phone })` writes only trimmed `full_name` and optional international `phone` to the signed-in profile. Existing owner RLS and moderation-field guards remain active. Profile metrics exclude sample records and sum portions from donor-confirmed `picked_up` claims; no unsupported environmental conversion or invented achievement is displayed.

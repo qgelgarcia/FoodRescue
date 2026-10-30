@@ -46,7 +46,7 @@ const topics = [
       <p>Stopping sharing deletes that point. Pickup, effective cancellation, post removal and expiration also end sharing. Deadline access stops immediately; scheduled cleanup removes expired location records.</p>
       <h4>History and concerns</h4>
       <p>Claims, reports and moderation records remain available as history; cancelling an arrangement does not erase those records. Reporters can view their own reports, and authorized admins review them. Map views request tiles from OpenStreetMap’s tile service.</p>
-      <p>For questions about your account or stored information, contact the campus project administrator through your usual campus channel. Never include your password or pickup code in a report.</p>
+      <p>For questions about your account or stored information, email <a href="mailto:FoodRescue@gmail.com">FoodRescue@gmail.com</a>. Never include your password or pickup code in a report.</p>
     </> },
   { id: 'support', title: 'Contact Support', description: 'Get help with your account', Icon: MessageCircle,
     content: <>
@@ -54,7 +54,7 @@ const topics = [
       <p>Open Reports &amp; Support, select the listing or member, and explain what happened. You can check your own report status and resolution there. Submitting a report does not cancel an existing pickup.</p>
       <Link to="/app/reports">Open Reports &amp; Support</Link>
       <h4>Account access or technical problems</h4>
-      <p>Contact your campus project administrator through your usual campus channel. Include the page, approximate time, steps to reproduce the issue and a screenshot if available. In-app reports require a listing or member target.</p>
+      <p>Email <a href="mailto:FoodRescue@gmail.com">FoodRescue@gmail.com</a>. Include the page, approximate time, steps to reproduce the issue and a screenshot if available. In-app reports require a listing or member target.</p>
       <p>Never send passwords, sign-in codes or pickup tokens. This screen does not provide live chat or emergency assistance.</p>
     </> },
 ];

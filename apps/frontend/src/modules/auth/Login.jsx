@@ -16,7 +16,9 @@ export default function Login() {
   const history = useHistory();
   const location = useLocation();
   useEffect(() => {
-    if (new URLSearchParams(location.search).has('auth_error')) setError('Google sign-in could not finish. Try again or use email sign-in.');
+    const params = new URLSearchParams(location.search);
+    if (params.has('auth_error')) setError('Google sign-in could not finish. Try again or use email sign-in.');
+    if (params.has('password_reset')) setSuccessMsg('Password updated. Sign in with your new password.');
   }, [location.search]);
 
   // Mode: 'signin' or 'signup'
@@ -408,6 +410,14 @@ export default function Login() {
 
           <PasswordInput value={password} onChange={event => setPassword(event.target.value)} signup={mode === 'signup'}
             inputProps={field('password')} error={message('password')} disabled={loading || oauthLoading} />
+
+          {mode === 'signin' && (
+            <div className="auth-recovery-link">
+              <button type="button" className="link-btn" onClick={() => history.push('/forgot-password')}>
+                Forgot password?
+              </button>
+            </div>
+          )}
 
           {/* Confirm Password Field on Sign Up */}
           {mode === 'signup' && (

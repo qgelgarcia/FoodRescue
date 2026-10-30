@@ -335,6 +335,50 @@ async function waitForPostDeadline(postId) {
   );
 }
 
+test('notification destinations identify exact claims and reports without expanding recipient access', async () => {
+  const donor = await createMember({ role: 'provider' });
+  const alice = await createMember();
+  const bob = await createMember();
+  const admin = await createMember({ role: 'admin' });
+  const post = await createPost(donor, { quantity: 4 });
+  const first = await startClaim(post, alice);
+  const second = await startClaim(post, bob);
+  const notices = await asMember(donor, () => db.query(
+    `select related_claim_id from public.notifications where related_post_id=$1 order by related_claim_id`, [post],
+  ));
+  assert.deepEqual(notices.rows.map(row => row.related_claim_id).sort(), [first.claim_id, second.claim_id].sort());
+  await decideClaim(donor, first.claim_id, true);
+  const accepted = await asMember(alice, () => db.query(
+    `select id, related_claim_id from public.notifications where related_post_id=$1 and type='claim_accepted'`, [post],
+  ));
+  assert.equal(accepted.rows[0].related_claim_id, first.claim_id);
+  assert.equal((await asMember(bob, () => db.query('select id from public.notifications where id=$1', [accepted.rows[0].id]))).rows.length, 0);
+  await assert.rejects(asMember(alice, () => db.query(
+    'update public.notifications set related_claim_id=$1 where id=$2', [second.claim_id, accepted.rows[0].id],
+  )), /permission denied/);
+  await asMember(alice, () => db.query('update public.notifications set is_read=true where id=$1', [accepted.rows[0].id]));
+
+  const report = (await asMember(alice, () => db.query(
+    `select public.submit_report('post',$1,'Test report with sufficient explanation') as id`, [post],
+  ))).rows[0].id;
+  await asMember(admin, () => db.query(`select public.admin_update_report($1,'reviewed',null)`, [report]));
+  const reportNotice = await asMember(alice, () => db.query(
+    'select related_report_id, related_claim_id from public.notifications where related_report_id=$1', [report],
+  ));
+  assert.equal(reportNotice.rows.length, 1);
+  assert.equal(reportNotice.rows[0].related_claim_id, null);
+  assert.equal((await asMember(bob, () => db.query('select id from public.get_my_reports() where id=$1', [report]))).rows.length, 0);
+  const request = await requestCancellation(alice, first.claim_id);
+  await decideCancellation(donor, request.rows[0].request_claim_cancellation, false, 'Please continue the arranged pickup');
+  const cancellation = await asMember(alice, () => db.query(
+    `select related_claim_id from public.notifications where related_post_id=$1 and message like 'Your cancellation%'`, [post],
+  ));
+  assert.equal(cancellation.rows[0].related_claim_id, first.claim_id);
+  await db.query('delete from public.reports where id=$1', [report]);
+  const retained = await db.query('select related_report_id from public.notifications where related_report_id=$1', [report]);
+  assert.equal(retained.rows[0].related_report_id, report, 'deleted exact targets retain identity rather than falling back to a different context');
+});
+
 test('claim_food enforces ownership, active membership, deadlines, and available quantity', async () => {
   const donor = await createMember({ role: 'provider' });
   const claimant = await createMember();

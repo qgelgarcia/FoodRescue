@@ -37,5 +37,7 @@ jobs:
         run: npm ci
       - name: Run regression tests
         run: npm test
+      - name: Check JavaScript and JSX identifiers
+        run: npm run lint
       - name: Build shared types, frontend and backend
         run: npm run build

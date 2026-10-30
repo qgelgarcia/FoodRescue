@@ -1,0 +1,6 @@
+.page-recovery { margin: clamp(20px, 5vw, 64px) auto; width: min(600px, calc(100% - 32px)); padding: 28px; border-radius: 16px; background: var(--theme-surface); color: var(--theme-ink); border: 1px solid var(--theme-line); }
+.page-recovery h1 { font-size: clamp(22px, 4vw, 30px); line-height: 1.25; font-weight: 750; margin: 0 0 12px; }
+.page-recovery p { color: var(--theme-muted); font-size: 15px; line-height: 1.65; margin-bottom: 24px; }
+.page-recovery > div { display: flex; gap: 12px; flex-wrap: wrap; }
+.page-recovery button { min-height: 44px; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--theme-line); color: var(--theme-ink); background: var(--theme-raised); font-weight: 700; }
+.page-recovery button:focus-visible { outline: 3px solid var(--theme-accent); outline-offset: 3px; }

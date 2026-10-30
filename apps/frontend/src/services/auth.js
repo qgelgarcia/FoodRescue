@@ -3,6 +3,17 @@ import { profileFields } from '../lib/profile-inputs';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { createRecoverySessionTracker, passwordRecoveryRedirect, requestPasswordRecovery as requestRecovery, saveRecoveredPassword } from '../lib/password-recovery.js';
+
+const recoverySession = createRecoverySessionTracker();
+let nativeRecoveryExchangePending = false;
+
+function trackRecoverySession(event, session) {
+  recoverySession.observe(event, session, nativeRecoveryExchangePending);
+}
+
+// Track Supabase's explicit recovery event before a recovery screen checks the session.
+if (isSupabaseConfigured()) supabase.auth.onAuthStateChange(trackRecoverySession);
 
 const DEMO_USERS = {
   'admin@campus.edu': {
@@ -194,11 +205,13 @@ export async function signInWithGoogle() {
 /**
  * Sign out
  */
-export async function logout() {
+export async function logout({ localOnly = false } = {}) {
   localStorage.removeItem('foodrescue_demo_user');
+  clearPasswordRecoveryContext();
   if (isSupabaseConfigured()) {
     try {
-      await supabase.auth.signOut();
+      if (localOnly) await supabase.auth.signOut({ scope: 'local' });
+      else await supabase.auth.signOut();
     } catch {
       // ignore
     }
@@ -267,6 +280,69 @@ export async function updateOwnProfile(fields) {
 
 export function onAuthStateChange(callback) {
   if (!isSupabaseConfigured()) return { unsubscribe: () => {} };
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(callback);
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    trackRecoverySession(event, session);
+    callback(nativeRecoveryExchangePending && event === 'SIGNED_IN' ? 'PASSWORD_RECOVERY' : event, session);
+  });
   return subscription;
+}
+
+export async function requestPasswordRecovery(email) {
+  if (!isSupabaseConfigured()) {
+    return { error: 'Password recovery is unavailable until the shared service is connected.' };
+  }
+  const redirectTo = passwordRecoveryRedirect({
+    native: Capacitor.isNativePlatform(),
+    origin: typeof window === 'undefined' ? '' : window.location.origin,
+  });
+  return requestRecovery({ auth: supabase.auth, email, redirectTo });
+}
+
+export async function hasPasswordRecoverySession() {
+  if (!isSupabaseConfigured()) return false;
+  try {
+    // Await URL callback handling before checking the in-memory recovery marker.
+    await supabase.auth.initialize();
+    const { data: { session } } = await supabase.auth.getSession();
+    // Supabase queues PASSWORD_RECOVERY immediately after initialization resolves.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    return recoverySession.matches(session);
+  } catch {
+    return false;
+  }
+}
+
+export function clearPasswordRecoveryContext() {
+  recoverySession.clear();
+}
+
+/** Exchange the one-time native PKCE recovery code and mark only its resulting session. */
+export async function completeNativePasswordRecovery(code) {
+  if (!isSupabaseConfigured() || !code) return { error: 'This reset link is invalid or expired.' };
+  nativeRecoveryExchangePending = true;
+  try {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error || !recoverySession.set(data?.session)) {
+      recoverySession.clear();
+      return { error: 'This reset link is invalid, expired, or has already been used.' };
+    }
+    return { error: null };
+  } catch {
+    recoverySession.clear();
+    return { error: 'This reset link is invalid, expired, or has already been used.' };
+  } finally {
+    nativeRecoveryExchangePending = false;
+  }
+}
+
+export async function updatePasswordFromRecovery(password, confirmation) {
+  if (!isSupabaseConfigured()) return { error: 'Password recovery is unavailable until the shared service is connected.' };
+  const result = await saveRecoveredPassword({
+    auth: supabase.auth,
+    password,
+    confirmation,
+    hasRecoverySession: hasPasswordRecoverySession,
+  });
+  if (!result.error) clearPasswordRecoveryContext();
+  return result;
 }

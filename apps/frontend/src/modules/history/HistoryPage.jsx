@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ArrowRight, ClipboardList, RefreshCw, Ticket } from 'lucide-react';
 import PageShell from '../../components/layout/PageShell';
 import { DonorClaimCard, MyClaimCard } from '../../components/claims/ClaimCard';
@@ -6,10 +7,14 @@ import PickupVerificationPanel from '../../components/claims/PickupVerificationP
 import { decideCancellation, decideClaim, getDonorClaims, getMyClaims, requestCancellation, verifyPickup } from '../../services/claims';
 import { getDonorJourneyLocations, notifyDonorOnMyWay } from '../../services/journey';
 import { friendlyError } from '../../services/request';
+import { matchesNotificationClaim } from '../../lib/notification-destination';
 
 const REFRESH_MS = 15000;
 
 export default function HistoryPage({ userProfile }) {
+  const location = useLocation();
+  const notificationPostId = location.state?.notificationPostId || null;
+  const notificationClaimId = location.state?.notificationClaimId || null;
   const [tab, setTab] = useState('mine');
   const [myClaims, setMyClaims] = useState([]);
   const [donorClaims, setDonorClaims] = useState([]);
@@ -18,6 +23,8 @@ export default function HistoryPage({ userProfile }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [verificationNeedsRefresh, setVerificationNeedsRefresh] = useState(false);
+  const [focusedPostId, setFocusedPostId] = useState(null);
+  const [notificationFocusState, setNotificationFocusState] = useState('none');
   const tabRef = useRef(tab);
   const requestSequence = useRef({ mine: 0, donor: 0 });
   const actionInProgress = useRef(false);
@@ -60,6 +67,60 @@ export default function HistoryPage({ userProfile }) {
   useEffect(() => {
     loadTab(tab, { showLoading: true });
   }, [tab]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!notificationPostId && !notificationClaimId) {
+      setFocusedPostId(null);
+      setNotificationFocusState('none');
+      return undefined;
+    }
+
+    setFocusedPostId(notificationPostId);
+    setNotificationFocusState('loading');
+    setError('');
+    (async () => {
+      try {
+        const mine = await getMyClaims();
+        if (cancelled) return;
+        setMyClaims(mine);
+        if (mine.some((claim) => matchesNotificationClaim(claim, notificationClaimId, notificationPostId))) {
+          setTab('mine');
+          setNotificationFocusState('found');
+          return;
+        }
+
+        const donor = await getDonorClaims();
+        if (cancelled) return;
+        setDonorClaims(donor);
+        if (donor.some((claim) => matchesNotificationClaim(claim, notificationClaimId, notificationPostId))) {
+          setTab('donor');
+          setNotificationFocusState('found');
+        } else {
+          setNotificationFocusState('unavailable');
+        }
+      } catch (cause) {
+        if (cancelled) return;
+        setError(friendlyError(cause));
+        setNotificationFocusState('error');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [notificationPostId, notificationClaimId]);
+
+  const focusedRows = tab === 'mine' ? myClaims : donorClaims;
+  const focusedRowIndex = focusedRows.findIndex((claim) => matchesNotificationClaim(claim, notificationClaimId, focusedPostId));
+
+  useEffect(() => {
+    if (notificationFocusState !== 'found' || focusedRowIndex < 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById('notification-focused-claim');
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [notificationFocusState, tab, focusedRowIndex]);
 
   useEffect(() => {
     const refreshVisibleTab = () => {
@@ -170,6 +231,9 @@ export default function HistoryPage({ userProfile }) {
             </button>
           </div>
 
+          {notificationFocusState === 'loading' && <p className="mb-4 rounded-2xl border border-[#dce4d7] bg-white px-4 py-3 text-sm text-[#536054]" role="status">Opening the pickup linked to your notification…</p>}
+          {notificationFocusState === 'unavailable' && <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">This pickup is unavailable or no longer appears in your claim history.</p>}
+
           <div role="tablist" aria-label="Claim sections" className="mb-5 grid grid-cols-2 rounded-2xl border border-[#dce4d7] bg-white p-1 shadow-sm">
             <button id="my-claims-tab" type="button" role="tab" aria-selected={tab === 'mine'} aria-controls="my-claims-panel" onClick={() => setTab('mine')} className={`rounded-xl px-3 py-3 text-sm font-bold transition-colors ${tab === 'mine' ? 'bg-[#2c8a38] text-white shadow-sm' : 'text-[#536054] hover:bg-[#f5faee]'}`}>
               My Claims <span className="ml-1 text-xs opacity-80">({myClaims.length})</span>
@@ -185,7 +249,7 @@ export default function HistoryPage({ userProfile }) {
           {tab === 'mine' ? <section id="my-claims-panel" role="tabpanel" aria-labelledby="my-claims-tab">
             {currentLoading && !selectedRows.length ? <div className="rounded-3xl border border-[#dce4d7] bg-white p-10 text-center text-sm text-[#536054]" role="status">Loading your claims…</div>
               : selectedRows.length ? <div className="space-y-4">
-                {myClaims.map((claim) => <MyClaimCard key={claim.id} claim={claim} busyAction={busyAction} onRequestCancellation={onRequestCancellation} onOnMyWay={onOnMyWay} />)}
+                {myClaims.map((claim, index) => <div key={claim.id} id={index === focusedRowIndex ? 'notification-focused-claim' : undefined} tabIndex={index === focusedRowIndex ? -1 : undefined} role={index === focusedRowIndex ? 'region' : undefined} aria-label={index === focusedRowIndex ? 'Pickup linked to your notification' : undefined} className={index === focusedRowIndex ? 'notification-focused-claim' : undefined}><MyClaimCard claim={claim} busyAction={busyAction} onRequestCancellation={onRequestCancellation} onOnMyWay={onOnMyWay} /></div>)}
               </div>
                 : <div className="rounded-3xl border border-[#dce4d7] bg-white p-10 text-center shadow-sm">
                   <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-[#0c6b20]"><Ticket size={23} /></span>
@@ -204,7 +268,7 @@ export default function HistoryPage({ userProfile }) {
                   <PickupVerificationPanel onVerify={onVerifyPickup} busy={busyAction === 'verify-pickup'} locked={Boolean(busyAction) && busyAction !== 'verify-pickup'} blocked={verificationNeedsRefresh} />
                 </>}
                 {verificationNeedsRefresh && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">Pickup verification succeeded, but the latest claim list could not be loaded. Refresh to unlock another verification.</p>}
-                {donorClaims.map((claim) => <DonorClaimCard key={claim.id} claim={claim} busyAction={busyAction} onDecideClaim={onDecideClaim} onDecideCancellation={onDecideCancellation} />)}
+                {donorClaims.map((claim, index) => <div key={claim.id} id={index === focusedRowIndex ? 'notification-focused-claim' : undefined} tabIndex={index === focusedRowIndex ? -1 : undefined} role={index === focusedRowIndex ? 'region' : undefined} aria-label={index === focusedRowIndex ? 'Pickup linked to your notification' : undefined} className={index === focusedRowIndex ? 'notification-focused-claim' : undefined}><DonorClaimCard claim={claim} busyAction={busyAction} onDecideClaim={onDecideClaim} onDecideCancellation={onDecideCancellation} /></div>)}
               </div>
                 : <div className="rounded-3xl border border-[#dce4d7] bg-white p-10 text-center shadow-sm">
                   <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-[#0c6b20]"><ClipboardList size={23} /></span>

@@ -3,6 +3,8 @@ import React from 'react';
 import { Redirect, Route, Switch } from 'react-router-dom';
 import Login from './modules/auth/Login';
 import Register from './modules/auth/Register';
+import ForgotPassword from './modules/auth/ForgotPassword';
+import ResetPassword from './modules/auth/ResetPassword';
 import AdminDashboard from './modules/admin/AdminDashboard';
 import AuthGuard from './guards/AuthGuard';
 import RoleGuard from './guards/RoleGuard';
@@ -15,11 +17,13 @@ import PostPage from './modules/post/PostPage';
 import HistoryPage from './modules/history/HistoryPage';
 import ProfilePage from './modules/profile/ProfilePage';
 import ReportsPage from './modules/reports/ReportsPage';
+import NotificationsPage from './modules/notifications/NotificationsPage';
 
 import { AnimatePresence, motion } from 'motion/react';
-import { useLocation } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import FloatingBottomDock from './components/layout/FloatingBottomDock';
 import CustomerHeader from './components/layout/CustomerHeader';
+import PageErrorBoundary from './components/layout/PageErrorBoundary';
 
 const ADMIN_ROUTES = [
   '/admin/dashboard',
@@ -32,6 +36,7 @@ const ADMIN_ROUTES = [
 
 function UserModuleTabs({ userProfile }) {
   const location = useLocation();
+  const history = useHistory();
 
   const activeMap = {
     '/app/home-feed': 'home',
@@ -39,7 +44,8 @@ function UserModuleTabs({ userProfile }) {
     '/app/post': 'post',
     '/app/history': 'history',
     '/app/profile': 'profile',
-    '/app/reports': 'profile'
+    '/app/reports': 'profile',
+    '/app/notifications': 'profile'
   };
   const activeTab = activeMap[location.pathname] || 'home';
   const direction = location.state?.direction || 1;
@@ -80,6 +86,7 @@ function UserModuleTabs({ userProfile }) {
           transition={pageTransition}
           className="absolute inset-0 flex flex-col"
         >
+          <PageErrorBoundary key={location.pathname} onGoHome={() => history.push('/app/home-feed')}>
           <Switch location={location}>
             <Route exact path="/app/home-feed">
               <HomeFeed userProfile={userProfile} />
@@ -99,8 +106,12 @@ function UserModuleTabs({ userProfile }) {
             <Route exact path="/app/reports">
               <ReportsPage userProfile={userProfile} />
             </Route>
+            <Route exact path="/app/notifications">
+              <NotificationsPage userProfile={userProfile} />
+            </Route>
             <Route exact path="/app"><Redirect to="/app/home-feed" /></Route>
           </Switch>
+          </PageErrorBoundary>
         </motion.div>
       </AnimatePresence>
       </div>
@@ -117,6 +128,8 @@ export default function App() {
     <Switch>
       <Route exact path="/login" component={Login} />
       <Route exact path="/register" component={Register} />
+      <Route exact path="/forgot-password" component={ForgotPassword} />
+      <Route exact path="/reset-password" component={ResetPassword} />
       {ADMIN_ROUTES.map((path) => (
         <RoleGuard key={path} exact path={path} component={AdminDashboard} allowedRole="admin" />
       ))}

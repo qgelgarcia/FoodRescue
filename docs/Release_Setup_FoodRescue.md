@@ -53,6 +53,14 @@ Camera and foreground location permissions are declared; background location is 
 
 Android Google OAuth uses the system browser and PKCE, returning through `org.foodrescue.campus://auth/callback`. Add that exact redirect URL to Supabase Auth's allowed redirects before device testing. The app handles warm and cold callback entry; it rejects callbacks for other hosts/paths and does not accept injected implicit tokens. Provider configuration and a real Google sign-in still need device acceptance. Email/password remains available for initial acceptance. See the official [Supabase native deep-link guidance](https://supabase.com/docs/guides/auth/native-mobile-deep-linking).
 
+## October 30 account features
+
+Password recovery requires exact Supabase Auth redirect entries for `http://127.0.0.1:5175/reset-password` during local testing, the selected HTTPS origin followed by `/reset-password`, and `org.foodrescue.campus://auth/recovery` for Android. Keep the existing Google callback entry. These dashboard settings and real recovery-email delivery have not been verified by the source tests. Do not include recovery tokens in acceptance screenshots.
+
+Apply `20261030020000_profile_avatars.sql` after the earlier migrations. It creates the private `profile-avatars` bucket with owner-only policies and JPEG/PNG/WebP limits of 5 MB. The migration was applied to linked project `tbmmqimhhazbuazetdwa` on October 30. No service-role key belongs in the frontend.
+
+Run `npm run lint`, `npm test`, and `npm run build` from the workspace root before packaging. ESLint checks undefined identifiers in frontend JavaScript/JSX, including JSX component names. The support contact supplied by the project owner is `FoodRescue@gmail.com`.
+
 ## Required release evidence
 
 Complete Defense_Test_Record.md using two Android installations, separate donor/claimant accounts and a desktop admin. Record actual outcomes, device versions, build version and screenshots. Build success and isolated SQL tests do not prove physical GPS/camera behavior, hosted Cron execution or independent-connection race safety.

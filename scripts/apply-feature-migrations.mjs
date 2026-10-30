@@ -10,6 +10,8 @@ const allowed = new Set([
   '20261029020000_post_cancellation_and_expiration.sql',
   '20261029030000_claimant_journey_sharing.sql',
   '20261030010000_enable_notification_realtime.sql',
+  '20261030020000_profile_avatars.sql',
+  '20261030030000_notification_destinations.sql',
 ]);
 const env = dotenv.parse(await readFile(path.join(root, 'apps/backend/.env')));
 const databaseUrl = new URL((await readFile(path.join(root, 'supabase/.temp/pooler-url'), 'utf8')).trim());
@@ -71,9 +73,17 @@ try {
     to_regprocedure('public.cancel_food_post(uuid,text)') is not null as donor_cancellation,
     to_regprocedure('public.expire_food_posts()') is not null as expiration,
     to_regprocedure('public.claim_on_my_way(uuid)') is not null as departure,
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='notifications' and column_name='related_claim_id')
+      and exists(select 1 from information_schema.columns where table_schema='public' and table_name='notifications' and column_name='related_report_id') as notification_destinations,
+    case when exists(select 1 from information_schema.columns where table_schema='public' and table_name='notifications' and column_name='related_claim_id')
+      then not has_column_privilege('authenticated','public.notifications','related_claim_id','update')
+        and not has_column_privilege('authenticated','public.notifications','related_report_id','update')
+        and has_column_privilege('authenticated','public.notifications','is_read','update')
+      else false end as notification_targets_protected,
     to_regprocedure('public.publish_claim_journey_location(uuid,uuid,bigint,double precision,double precision)') is not null as journey,
     exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='notifications') as notification_realtime,
-    (select file_size_limit=5242880 and allowed_mime_types @> array['image/jpeg','image/png','image/webp'] from storage.buckets where id='food-photos') as photo_limits
+    (select file_size_limit=5242880 and allowed_mime_types @> array['image/jpeg','image/png','image/webp'] from storage.buckets where id='food-photos') as photo_limits,
+    (select public=false and file_size_limit=5242880 and allowed_mime_types @> array['image/jpeg','image/png','image/webp'] from storage.buckets where id='profile-avatars') as private_avatar_limits
   `);
   console.log('Installed features:', JSON.stringify(state[0]));
   if (process.argv.includes('--apply') && Object.values(state[0]).some(value => value !== true)) throw new Error('Feature verification failed after migration commit.');

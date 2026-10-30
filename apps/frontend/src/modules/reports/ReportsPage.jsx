@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useHistory, useLocation } from 'react-router-dom';
 import PageShell from '../../components/layout/PageShell';
 import { getFoodPosts } from '../../services/food';
@@ -8,6 +8,8 @@ import './report-page.css';
 export default function ReportsPage({ userProfile }) {
   const history = useHistory();
   const location = useLocation();
+  const notificationReportId = location.state?.notificationReportId || null;
+  const focusedReport = useRef(null);
   const preset = location.state?.reportTarget;
   const [targetType, setTargetType] = useState(preset?.type || 'post');
   const [targetId, setTargetId] = useState(preset?.id || '');
@@ -34,6 +36,15 @@ export default function ReportsPage({ userProfile }) {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (loading || !notificationReportId) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      focusedReport.current?.focus({ preventScroll: true });
+      focusedReport.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, reports, notificationReportId]);
 
   const postTargets = useMemo(() => posts
     .filter((post) => post.donor_id !== userProfile?.id)
@@ -95,9 +106,10 @@ export default function ReportsPage({ userProfile }) {
 
         <section className="member-reports-list">
           <div className="page-header"><h2>My Reports</h2><p>Report contents remain available to you after resolution.</p></div>
+          {!loading && !error && notificationReportId && !reports.some(report => report.id === notificationReportId) && <p role="status" className="admin-feedback">This report is unavailable or does not belong to your account.</p>}
           {loading ? <div className="admin-empty-state" role="status">Loading your reports…</div>
             : reports.length ? <div className="admin-table-wrapper"><table className="admin-table"><thead><tr><th>Target</th><th>Your explanation</th><th>Status</th><th>Submitted</th></tr></thead><tbody>
-              {reports.map((report) => <tr key={report.id}>
+              {reports.map((report) => <tr key={report.id} ref={report.id === notificationReportId ? focusedReport : undefined} tabIndex={report.id === notificationReportId ? -1 : undefined} className={report.id === notificationReportId ? 'notification-focused-report' : undefined}>
                 <td>{report.target_type}: {report.target_label || 'Unavailable'}</td><td className="admin-long-text">{report.reason}</td>
                 <td><span className="report-status">{report.status}</span>{report.resolution_explanation && <small className="admin-subtext">{report.resolution_explanation}</small>}</td>
                 <td>{new Date(report.created_at).toLocaleString()}</td>
