@@ -15,6 +15,9 @@ const ATTEMPTS_KEY = 'fr_login_failed_attempts';
 export default function Login() {
   const history = useHistory();
   const location = useLocation();
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has('auth_error')) setError('Google sign-in could not finish. Try again or use email sign-in.');
+  }, [location.search]);
 
   // Mode: 'signin' or 'signup'
   const [mode, setMode] = useState('signin');

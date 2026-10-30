@@ -30,6 +30,7 @@ export interface FoodPost {
   pickup_address: string;
   expires_at: string;
   status: FoodPostStatus;
+  cancellation_reason?: string | null;
   created_at?: string;
 }
 
@@ -57,17 +58,25 @@ export interface Claim {
   status: ClaimStatus;
   created_at?: string;
   updated_at?: string;
+  on_my_way_at?: string | null;
 }
 
 export interface NotificationItem {
   id: string;
   user_id: string;
-  title: string;
   message: string;
   type: string;
-  read: boolean;
-  data?: Record<string, unknown> | null;
+  is_read: boolean;
+  related_post_id?: string | null;
   created_at?: string;
+}
+
+// Donors receive no sharing authorization token; only the claimant's current coordinates.
+export interface DonorJourney {
+  claim_id: string;
+  lat: number | null;
+  lng: number | null;
+  updated_at: string | null;
 }
 
 export interface ApiResponse<T = unknown> {

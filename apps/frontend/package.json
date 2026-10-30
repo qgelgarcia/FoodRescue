@@ -8,9 +8,16 @@
     "start": "vite --host 127.0.0.1",
     "ionic:serve": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:sync": "npm run build && cap sync android",
+    "android:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/geolocation": "^8.2.4",
     "@foodrescue/shared": "*",
     "@ionic/react": "^8.7.5",
     "@ionic/react-router": "^8.7.5",
@@ -32,6 +39,7 @@
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.6.1",

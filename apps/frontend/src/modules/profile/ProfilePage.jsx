@@ -1,14 +1,12 @@
 import AppearanceSettings from '../../components/auth/AppearanceSettings';
+import ProfileHelp from '../../components/profile/ProfileHelp';
 import React, { useEffect, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import { 
   UtensilsCrossed, 
-  Leaf, 
-  Scale, 
+  LogOut,
   Award, 
   CheckCircle2, 
-  LogOut, 
-  Calendar,
   Sparkles,
   Settings,
   HelpCircle,
@@ -18,12 +16,15 @@ import {
   MessageCircle,
   ChevronRight
 } from 'lucide-react';
-import CustomerHeader from '../../components/layout/CustomerHeader';
 import PageShell from '../../components/layout/PageShell';
 
 import { NumberTicker } from '../../components/ui/calamansi/number-ticker';
 import SignOutButton from '../../components/auth/SignOutButton';
 import { getMyFoodClaims } from '../../services/food';
+import { updateOwnProfile } from '../../services/auth';
+import { profileFields, verifiedPortions } from '../../lib/profile-inputs';
+import { friendlyError } from '../../services/request';
+import { useSharedRefresh } from '../../lib/shared-refresh';
 
 export default function ProfilePage({ userProfile }) {
   const history = useHistory();
@@ -31,18 +32,28 @@ export default function ProfilePage({ userProfile }) {
   useEffect(() => {
     getMyFoodClaims().then(setClaims).catch(() => {});
   }, []);
-  const completedClaims = claims.filter((c) => c.status === 'picked_up');
-  
-  // Calculate dynamic metrics based on rescues
-  const rescuedMeals = 14 + completedClaims.length;
-  const co2Prevented = (rescuedMeals * 0.45).toFixed(1);
-  const wasteDiverted = (rescuedMeals * 1.2).toFixed(1);
-
-
+  const [fullName, setFullName] = useState(userProfile?.full_name || '');
+  const [phone, setPhone] = useState(userProfile?.phone || '');
+  const [saving, setSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+  const [profileError, setProfileError] = useState('');
+  useSharedRefresh(() => getMyFoodClaims().then(setClaims).catch(() => {}));
+  const rescuedMeals = verifiedPortions(claims);
+  const completedClaims = claims.filter(c => !c.is_sample && c.status === 'picked_up');
+  async function saveProfile(event) {
+    event.preventDefault();
+    setSaving(true); setProfileError(''); setProfileMessage('');
+    try {
+      try { profileFields({ fullName, phone }); }
+      catch (error) { setProfileError(error.message); return; }
+      await updateOwnProfile({ fullName, phone });
+      setProfileMessage('Profile saved.');
+    } catch (error) { setProfileError(friendlyError(error)); }
+    finally { setSaving(false); }
+  }
   return (
     <PageShell>
       <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
-      <CustomerHeader active="profile" userProfile={userProfile} />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
         
@@ -66,17 +77,14 @@ export default function ProfilePage({ userProfile }) {
                   {userProfile?.full_name || 'Campus Member'}
                 </h1>
                 <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-100 to-emerald-50 text-[#0c6b20] border border-emerald-200/60 shadow-sm flex items-center gap-1">
-                  <CheckCircle2 size={11} className="text-emerald-500" /> Verified Rescuer
+                  <CheckCircle2 size={11} className="text-emerald-500" /> Campus Member
                 </span>
               </div>
-              <p className="text-sm font-medium text-[#687066] mt-1">{userProfile?.email || 'student@campus.edu'}</p>
+              {userProfile?.email && <p className="text-sm font-medium text-[#687066] mt-1">{userProfile.email}</p>}
               
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 mt-3">
                 <span className="text-[11px] font-bold text-[#182019] bg-white px-3 py-1.5 rounded-full capitalize border border-[#2a382e]/10 shadow-sm flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-slate-400"></span> Role: {userProfile?.role || 'student'}
-                </span>
-                <span className="text-[11px] font-bold text-[#0c6b20] bg-white px-3 py-1.5 rounded-full border border-emerald-200 shadow-sm flex items-center gap-1.5">
-                  <Award size={13} className="text-emerald-500" /> Level 2 Zero-Waste Champion
                 </span>
               </div>
             </div>
@@ -106,13 +114,13 @@ export default function ProfilePage({ userProfile }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             
-            {/* Stat 1: Total Meals Rescued */}
+            {/* Stat 1: Total Portions Rescued */}
             <div className="bg-white rounded-3xl p-6 border border-[#2a382e]/10 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="size-9 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#0c6b20] flex items-center justify-center mb-3">
                   <UtensilsCrossed size={18} />
                 </div>
-                <p className="text-xs font-bold text-[#687066] uppercase tracking-wider">Meals Rescued</p>
+                <p className="text-xs font-bold text-[#687066] uppercase tracking-wider">Portions Rescued</p>
                 <div className="mt-2">
                   <NumberTicker
                     value={rescuedMeals}
@@ -124,47 +132,13 @@ export default function ProfilePage({ userProfile }) {
               <small className="text-[11px] text-[#4c5b4f] block mt-3">Diverted from campus compost & waste</small>
             </div>
 
-            {/* Stat 2: CO2 Saved */}
-            <div className="bg-white rounded-3xl p-6 border border-[#2a382e]/10 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="size-9 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#0c6b20] flex items-center justify-center mb-3">
-                  <Leaf size={18} />
-                </div>
-                <p className="text-xs font-bold text-[#687066] uppercase tracking-wider">CO₂ Prevented</p>
-                <div className="mt-2">
-                  <NumberTicker
-                    value={parseFloat(co2Prevented)}
-                    variant="citrus"
-                    suffix=" kg"
-                    className="text-2xl font-['Space_Grotesk'] font-extrabold"
-                  />
-                </div>
-              </div>
-              <small className="text-[11px] text-[#4c5b4f] block mt-3">Equivalent to charging 1,800 smartphones</small>
+            <div className="bg-white rounded-3xl p-6 border border-[#2a382e]/10 shadow-sm">
+              <p className="text-xs font-bold uppercase">Verified pickups</p>
+              <p className="mt-2 text-2xl font-bold">{completedClaims.length}</p>
+              <p className="mt-3 text-xs">Only donor-confirmed pickups count toward your totals.</p>
             </div>
-
-            {/* Stat 3: Waste Diverted */}
-            <div className="bg-white rounded-3xl p-6 border border-[#2a382e]/10 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="size-9 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#0c6b20] flex items-center justify-center mb-3">
-                  <Scale size={18} />
-                </div>
-                <p className="text-xs font-bold text-[#687066] uppercase tracking-wider">Food Diverted</p>
-                <div className="mt-2">
-                  <NumberTicker
-                    value={parseFloat(wasteDiverted)}
-                    variant="slate"
-                    suffix=" lbs"
-                    className="text-2xl font-['Space_Grotesk'] font-extrabold"
-                  />
-                </div>
-              </div>
-              <small className="text-[11px] text-[#4c5b4f] block mt-3">Certified sustainable surplus weight</small>
-            </div>
-
           </div>
         </section>
-
         {/* Recent Activity Log */}
         <section className="bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/10 shadow-sm mb-8">
           <h3 className="font-['Space_Grotesk'] font-bold text-base text-[#182019] mb-4 flex items-center gap-2">
@@ -172,38 +146,26 @@ export default function ProfilePage({ userProfile }) {
             <span>Recent Rescue Milestones</span>
           </h3>
           <div className="divide-y divide-[#2a382e]/10">
-            <div className="py-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="size-8 rounded-xl bg-emerald-50 text-[#0c6b20] flex items-center justify-center border border-emerald-200">
-                  <Award size={16} />
-                </div>
-                <div>
-                  <p className="font-bold text-xs text-[#182019]">Achieved Zero-Waste Badge</p>
-                  <p className="text-[11px] text-[#687066]">Rescued over 10 campus meals this semester</p>
-                </div>
-              </div>
-              <span className="text-[11px] font-mono text-[#687066] flex items-center gap-1">
-                <Calendar size={11} /> Yesterday
-              </span>
-            </div>
-
-            <div className="py-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="size-8 rounded-xl bg-emerald-50 text-[#0c6b20] flex items-center justify-center border border-emerald-200">
-                  <UtensilsCrossed size={16} />
-                </div>
-                <div>
-                  <p className="font-bold text-xs text-[#182019]">Main Library Cafe Rescue</p>
-                  <p className="text-[11px] text-[#687066]">Claimed artisan ciabatta sandwiches</p>
-                </div>
-              </div>
-              <span className="text-[11px] font-mono text-[#687066] flex items-center gap-1">
-                <Calendar size={11} /> Oct 2026
-              </span>
-            </div>
+            {completedClaims.length === 0 && <p className="text-sm">Your verified pickups will appear here.</p>}
+            {completedClaims.slice(0, 5).map(claim => <div key={claim.id} className="py-3">
+              <p className="font-bold text-sm">{claim.post_title}</p>
+              <p className="text-xs">{claim.quantity} portions · Verified pickup</p>
+            </div>)}
           </div>
         </section>
 
+        <form onSubmit={saveProfile} className="bg-white rounded-3xl p-6 border border-[#2a382e]/10 mb-8 space-y-4">
+          <h3 className="font-bold">Edit profile</h3>
+          <label className="block text-sm">Full name
+            <input required minLength={2} maxLength={100} value={fullName} onChange={e => setFullName(e.target.value)} className="block w-full border rounded-xl p-3 mt-1" />
+          </label>
+          <label className="block text-sm">Phone (optional, international format)
+            <input type="tel" maxLength={16} placeholder="+639171234567" value={phone} onChange={e => setPhone(e.target.value)} className="block w-full border rounded-xl p-3 mt-1" />
+          </label>
+          {profileError && <p role="alert" className="text-rose-700">{profileError}</p>}
+          {profileMessage && <p role="status">{profileMessage}</p>}
+          <button disabled={saving} className="rounded-xl bg-emerald-800 text-white px-4 py-3 disabled:opacity-50">{saving ? 'Saving…' : 'Save profile'}</button>
+        </form>
         {/* Settings & Support */}
         <section className="bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/10 shadow-sm">
           <h3 className="font-['Space_Grotesk'] font-bold text-base text-[#182019] mb-4 flex items-center gap-2">
@@ -211,28 +173,7 @@ export default function ProfilePage({ userProfile }) {
             <span>Settings & Legal</span>
           </h3>
           <AppearanceSettings />
-          <div className="divide-y divide-[#2a382e]/10">
-            {[
-              { icon: <HelpCircle size={16} />, label: "FAQ", desc: "Common questions about rescues" },
-              { icon: <Info size={16} />, label: "About Us", desc: "Our campus sustainability mission" },
-              { icon: <FileText size={16} />, label: "Terms of Service", desc: "Rules and usage guidelines" },
-              { icon: <Shield size={16} />, label: "Privacy Policy", desc: "How we protect your data" },
-              { icon: <MessageCircle size={16} />, label: "Contact Support", desc: "Get help with your account" }
-            ].map((item, idx) => (
-              <div key={idx} className="py-3.5 flex items-center justify-between cursor-pointer group">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-xl bg-[#f0f6ed] text-[#4c5b4f] flex items-center justify-center border border-[#2a382e]/10 group-hover:bg-emerald-50 group-hover:text-[#2c8a38] group-hover:border-emerald-200 transition-colors">
-                    {item.icon}
-                  </div>
-                  <div>
-                    <p className="font-bold text-sm text-[#182019]">{item.label}</p>
-                    <p className="text-[11px] text-[#687066]">{item.desc}</p>
-                  </div>
-                </div>
-                <ChevronRight size={16} className="text-[#8fa37d] group-hover:text-[#2c8a38] transition-colors" />
-              </div>
-            ))}
-          </div>
+          <ProfileHelp />
         </section>
 
       </main>

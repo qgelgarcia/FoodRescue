@@ -2043,6 +2043,12 @@ ion-content.foodrescue-content {
   color: #0c6b20;
 }
 
+/* Override Ionic's header layer so feed controls cannot cover its dropdown. */
+ion-header.member-header {
+  z-index: 60;
+  overflow: visible;
+}
+
 .member-notification-wrap {
   position: relative;
 }
@@ -2111,6 +2117,16 @@ ion-content.foodrescue-content {
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.member-notification-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.member-notification-heading button:disabled {
+  color: #8a9287;
+  cursor: default;
 }
 
 .member-notification-item {
@@ -2451,6 +2467,8 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #a3233
 .pickup-map-notice { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border: 1px solid #dce4d7; border-radius: 14px; background: #fff; color: #456447; margin: 12px 0; font-size: 13px; }
 .pickup-map-notice button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #edf4e8; border-radius: 10px; font-weight: 700; }
 .pickup-map-marker { display: grid; place-items: center; background: #2c8a38; color: #fff; border: 3px solid white; border-radius: 50% 50% 50% 8px; box-shadow: 0 3px 12px #18201950; }
+.pickup-pin-div-icon { border: 0 !important; background: transparent !important; }
+.pickup-pin-marker { display: block; width: 24px; height: 24px; border: 3px solid #fff; border-radius: 50% 50% 50% 8px; background: #2c8a38; box-shadow: 0 3px 12px #18201970; transform: rotate(-45deg); }
 .pickup-map-canvas .leaflet-control-zoom a { min-width: 44px; min-height: 44px; line-height: 44px; }
 .pickup-map-canvas .leaflet-control-attribution { font-size: 10px; }
 .pickup-popup strong { display: block; font-size: 14px; color: #1c6428; }
@@ -2472,6 +2490,7 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #a3233
 
 /* Appearance is applied before first paint; only the reveal owns the transition. */
 :root { color-scheme: light; --theme-page: #f6f9f0; --theme-surface: #fff; --theme-raised: #f0f6ed; --theme-ink: #182019; --theme-muted: #687066; --theme-line: #dce4d7; --theme-accent: #286b32; }
+ion-content.foodrescue-content { --color: var(--theme-ink); color: var(--theme-ink); }
 :root[data-theme="dark"] { color-scheme: dark; --theme-page: #101b15; --theme-surface: #1a2921; --theme-raised: #24382c; --theme-ink: #edf4e9; --theme-muted: #adbfad; --theme-line: #3b5142; --theme-accent: #a0db99; --ink: #edf4e9; --muted: #adbfad; --pale: #101b15; --card: #1a2921; --line: #3b5142; --green: #a0db99; }
 .theme-reveal::view-transition-old(root), .theme-reveal::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 .theme-reveal::view-transition-image-pair(root) { isolation: auto; }
@@ -2549,3 +2568,10 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #a3233
 .theme-reveal *, .theme-reveal *::before, .theme-reveal *::after { transition: none !important; animation: none !important; }
 .theme-reveal::view-transition-group(root) { animation: none; }
 .theme-reveal::view-transition-new(root) { will-change: clip-path; }
+
+/* Respect Android display cutouts and gesture navigation. */
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}

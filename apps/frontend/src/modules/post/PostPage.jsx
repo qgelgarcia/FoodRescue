@@ -1,12 +1,24 @@
 import { friendlyError } from '../../services/request';
 import React, { useEffect, useState } from 'react';
-import { PlusCircle, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Camera, X, Pencil, Archive } from 'lucide-react';
-import CustomerHeader from '../../components/layout/CustomerHeader';
+import { PlusCircle, ShieldCheck, HeartHandshake, Camera, X, Pencil, XCircle, RefreshCw } from 'lucide-react';
 import PageShell from '../../components/layout/PageShell';
+import PickupPinPicker from '../../components/post/PickupPinPicker';
 
 import { DurationPicker } from '../../components/ui/calamansi/duration-picker';
-import { archiveFoodPost, createFoodPost, getOwnFoodPosts, updateFoodPost } from '../../services/food';
+import { cancelFoodPost, createFoodPost, getOwnFoodPosts, updateFoodPost } from '../../services/food';
+import { FoodPhotoError, validateFoodPhotoFile } from '../../lib/food-photo';
 import { validateFoodPostDraft } from '../../lib/validation';
+import { useSharedRefresh } from '../../lib/shared-refresh';
+
+function postStatusLabel(status) {
+  return ({
+    active: 'Available',
+    fully_claimed: 'Fully reserved',
+    expired: 'Expired',
+    removed_by_donor: 'Cancelled by donor',
+    removed_by_admin: 'Removed by admin',
+  })[status] || status;
+}
 
 export default function PostPage({ userProfile }) {
   const [foodName, setFoodName] = useState('');
@@ -14,7 +26,11 @@ export default function PostPage({ userProfile }) {
   const [category, setCategory] = useState('Meals');
   const [quantity, setQuantity] = useState('5');
   const [pickupAddress, setPickupAddress] = useState('');
-  const [photos, setPhotos] = useState([]);
+  const [pickupPin, setPickupPin] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState('');
+  const [originalPhotoUrl, setOriginalPhotoUrl] = useState('');
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('');
   const [duration, setDuration] = useState({ hours: 3, minutes: 0 });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -25,14 +41,28 @@ export default function PostPage({ userProfile }) {
   const [editingPostId, setEditingPostId] = useState(null);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsError, setPostsError] = useState('');
-  const [archivingPostId, setArchivingPostId] = useState(null);
+  const [cancelReasonPostId, setCancelReasonPostId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancellingPostId, setCancellingPostId] = useState(null);
 
   useEffect(() => {
-    loadOwnPosts();
+    loadOwnPosts({ showLoading: true });
   }, []);
 
-  async function loadOwnPosts() {
-    setPostsLoading(true);
+  useSharedRefresh(() => loadOwnPosts());
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreviewUrl(existingPhotoUrl);
+      return undefined;
+    }
+    const preview = URL.createObjectURL(photoFile);
+    setPhotoPreviewUrl(preview);
+    return () => URL.revokeObjectURL(preview);
+  }, [photoFile, existingPhotoUrl]);
+
+  async function loadOwnPosts({ showLoading = false } = {}) {
+    if (showLoading) setPostsLoading(true);
     setPostsError('');
     try {
       setOwnPosts(await getOwnFoodPosts());
@@ -50,7 +80,10 @@ export default function PostPage({ userProfile }) {
     setCategory('Meals');
     setQuantity('5');
     setPickupAddress('');
-    setPhotos([]);
+    setPickupPin(null);
+    setPhotoFile(null);
+    setExistingPhotoUrl('');
+    setOriginalPhotoUrl('');
     setDuration({ hours: 3, minutes: 0 });
     setFieldErrors({});
     setFormError('');
@@ -58,6 +91,7 @@ export default function PostPage({ userProfile }) {
   }
 
   function startEditing(post) {
+    if (post.status !== 'active' || post.has_claim_history) return;
     const remainingMinutes = Math.max(15, Math.min(24 * 60, Math.ceil((Date.parse(post.expires_at) - Date.now()) / 60000)));
     setEditingPostId(post.id);
     setFoodName(post.food_name);
@@ -65,7 +99,12 @@ export default function PostPage({ userProfile }) {
     setCategory(post.category || 'Meals');
     setQuantity(String(post.quantity_total));
     setPickupAddress(post.pickup_address);
-    setPhotos(post.photo_url ? [post.photo_url] : []);
+    setPickupPin(Number.isFinite(Number(post.pickup_lat)) && Number.isFinite(Number(post.pickup_lng))
+      ? { lat: Number(post.pickup_lat), lng: Number(post.pickup_lng) }
+      : null);
+    setPhotoFile(null);
+    setExistingPhotoUrl(post.photo_url || '');
+    setOriginalPhotoUrl(post.photo_url || '');
     setDuration({ hours: Math.floor(remainingMinutes / 60), minutes: remainingMinutes % 60 });
     setFieldErrors({});
     setFormError('');
@@ -83,26 +122,22 @@ export default function PostPage({ userProfile }) {
   }
 
   const handlePhotoUpload = (e) => {
-    if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files);
-      const invalidFile = selectedFiles.find((file) => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024);
-
-      if (invalidFile) {
-        setFieldErrors((previous) => ({
-          ...previous,
-          photos: 'Photos must be images smaller than 5 MB each.',
-        }));
-        return;
-      }
-
-      const filesArray = selectedFiles.map((file) => URL.createObjectURL(file));
-      setPhotos(prev => [...prev, ...filesArray]);
-      clearFieldError('photos');
+    const selectedFile = e.target.files?.[0];
+    e.target.value = '';
+    if (!selectedFile) return;
+    const error = validateFoodPhotoFile(selectedFile);
+    if (error) {
+      setFieldErrors((previous) => ({ ...previous, photos: error }));
+      return;
     }
+    setPhotoFile(selectedFile);
+    setExistingPhotoUrl('');
+    clearFieldError('photos');
   };
 
-  const removePhoto = (index) => {
-    setPhotos(photos.filter((_, i) => i !== index));
+  const removePhoto = () => {
+    setPhotoFile(null);
+    setExistingPhotoUrl('');
     clearFieldError('photos');
   };
 
@@ -116,7 +151,8 @@ export default function PostPage({ userProfile }) {
       quantity,
       pickupAddress,
       duration,
-      photos,
+      pickupPin,
+      photoFile,
     });
 
     setFieldErrors(validation.errors);
@@ -137,7 +173,10 @@ export default function PostPage({ userProfile }) {
         category: validation.values.category,
         quantity: validation.values.quantity,
         pickupAddress: validation.values.pickupAddress,
-        photoUrl: photos[0],
+        pickupPin: validation.values.pickupPin,
+        photoUrl: existingPhotoUrl,
+        previousPhotoUrl: originalPhotoUrl,
+        photoFile,
         expiresHours: totalHours > 0 ? totalHours : 3,
       };
       if (editingPostId) {
@@ -153,31 +192,33 @@ export default function PostPage({ userProfile }) {
       resetDraft();
       setSuccess(true);
     } catch (error) {
-      setFormError(friendlyError(error));
+      setFormError(error instanceof FoodPhotoError ? error.message : friendlyError(error));
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleArchive(post) {
-    if (!window.confirm(`Archive "${post.food_name}"? Existing claim history will be kept.`)) return;
-    setArchivingPostId(post.id);
+  async function handleCancelPost(post) {
+    const reason = cancelReason.trim();
+    if (reason.length < 10 || reason.length > 2000) return;
+    setCancellingPostId(post.id);
     setPostsError('');
     try {
-      await archiveFoodPost(post.id);
-      setOwnPosts((previous) => previous.filter((item) => item.id !== post.id));
+      await cancelFoodPost(post.id, reason);
+      await loadOwnPosts();
+      setCancelReasonPostId(null);
+      setCancelReason('');
       if (editingPostId === post.id) resetDraft();
     } catch (error) {
       setPostsError(friendlyError(error));
     } finally {
-      setArchivingPostId(null);
+      setCancellingPostId(null);
     }
   }
 
   return (
     <PageShell>
       <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
-      <CustomerHeader active="post" userProfile={userProfile} />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
 
@@ -225,7 +266,7 @@ export default function PostPage({ userProfile }) {
           <form noValidate onBlurCapture={(event) => {
             const key = { 'food-name': 'foodName', 'food-description': 'description', 'food-quantity': 'quantity', 'pickup-address': 'pickupAddress', 'food-category': 'category', 'photo-upload': 'photos' }[event.target.id];
             if (!key) return;
-            const errors = validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, photos }).errors;
+            const errors = validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, pickupPin, photoFile }).errors;
             setFieldErrors(previous => ({ ...previous, [key]: errors[key] }));
           }} aria-busy={loading} onSubmit={handleSubmit} className="md:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/15 shadow-sm space-y-5">
             
@@ -248,56 +289,41 @@ export default function PostPage({ userProfile }) {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#182019] mb-1.5">
-                Display Photos <span className="text-rose-500">*</span>
+              <label htmlFor="photo-upload" className="block text-xs font-bold text-[#182019] mb-1.5">
+                Display Photo <span className="font-medium text-[#687066]">(optional)</span>
               </label>
               
               <div className="w-full bg-[#fbfdf8] border border-dashed border-[#2a382e]/30 rounded-2xl p-4 text-center">
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                   capture="environment"
-                  multiple
                   id="photo-upload"
                   className="hidden"
-                  disabled={Boolean(editingPostId)}
+                  disabled={loading}
                   onChange={handlePhotoUpload}
                 />
                 
-                {photos.length === 0 ? (
+                {!photoPreviewUrl ? (
                   <label htmlFor="photo-upload" className="cursor-pointer flex flex-col items-center justify-center py-4 hover:opacity-80 transition-opacity">
                     <div className="size-12 rounded-full bg-emerald-50 text-[#0c6b20] flex items-center justify-center mb-2 shadow-sm">
                       <Camera size={20} />
                     </div>
-                    <p className="text-sm font-bold text-[#182019]">Take a photo or upload</p>
-                    <p className="text-xs text-[#687066] mt-1">Show what the food looks like</p>
+                    <p className="text-sm font-bold text-[#182019]">Add one food photo</p>
+                    <p className="text-xs text-[#687066] mt-1">JPEG, PNG, or WebP · up to 5 MB</p>
                   </label>
                 ) : (
-                  <div className="flex flex-wrap gap-3">
-                    {photos.map((src, idx) => (
-                      <div key={idx} className="relative size-20 rounded-xl overflow-hidden shadow-sm border border-[#2a382e]/10 group">
-                        <img src={src} alt="Upload preview" className="w-full h-full object-cover" />
-                        {!editingPostId && (
-                          <button 
-                            type="button" 
-                            onClick={() => removePhoto(idx)} 
-                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-rose-500 transition-colors opacity-0 group-hover:opacity-100"
-                          >
-                            <X size={12} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    
-                    {!editingPostId && (
-                      <label htmlFor="photo-upload" className="size-20 rounded-xl border border-dashed border-[#2a382e]/30 flex flex-col items-center justify-center text-[#687066] cursor-pointer hover:bg-emerald-50 hover:text-[#0c6b20] hover:border-emerald-200 shadow-sm transition-colors">
-                        <PlusCircle size={20} />
-                      </label>
-                    )}
+                  <div className="flex items-center justify-center gap-3">
+                    <img src={photoPreviewUrl} alt="Food listing preview" className="size-24 rounded-xl border border-[#2a382e]/10 object-cover" />
+                    <div className="flex flex-col items-start gap-2">
+                      <label htmlFor="photo-upload" className="cursor-pointer text-xs font-bold text-[#0c6b20]">Replace photo</label>
+                      <button type="button" onClick={removePhoto} className="text-xs font-semibold text-rose-700">Remove photo</button>
+                    </div>
                   </div>
                 )}
               </div>
-              {editingPostId && <p className="mt-1 text-[11px] text-[#687066]">Photo stays unchanged while editing.</p>}
+              {photoFile && loading && <p className="mt-1 text-xs text-[#0c6b20]" role="status">Uploading photo and saving your listing…</p>}
+              {!photoPreviewUrl && <p className="mt-1 text-[11px] text-[#687066]">Listings without a photo use the default image.</p>}
               {fieldErrors.photos && <p className="mt-1 text-xs text-rose-700" role="alert">{fieldErrors.photos}</p>}
             </div>
 
@@ -349,17 +375,23 @@ export default function PostPage({ userProfile }) {
               <label htmlFor="pickup-address" className="block text-xs font-bold text-[#182019] mb-1.5">
                 Pickup Location & Instructions <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="text"
+              <textarea
                 id="pickup-address" maxLength={240}
                 required
+                rows="2"
                 value={pickupAddress}
                 onChange={(e) => { setPickupAddress(e.target.value); clearFieldError('pickupAddress'); }}
                 aria-invalid={Boolean(fieldErrors.pickupAddress)}
-                placeholder="e.g. Main Library Cafe, Ground Floor pickup counter"
-                className="w-full bg-[#fbfdf8] border border-[#2a382e]/20 rounded-2xl px-4 py-2.5 text-xs text-[#182019] focus:outline-none focus:ring-2 focus:ring-[#2c8a38]"
-              />
+                placeholder="Include the building, entrance, pickup instructions, and handoff details."
+                className="w-full bg-[#fbfdf8] border border-[#2a382e]/20 rounded-2xl p-4 text-xs text-[#182019] focus:outline-none focus:ring-2 focus:ring-[#2c8a38]"
+              ></textarea>
               {fieldErrors.pickupAddress && <p className="mt-1 text-xs text-rose-700">{fieldErrors.pickupAddress}</p>}
+            </div>
+
+            <div>
+              <h2 className="mb-1.5 text-xs font-bold text-[#182019]">Pickup Pin <span className="text-rose-500">*</span></h2>
+              <PickupPinPicker value={pickupPin} onChange={(pin) => { setPickupPin(pin); clearFieldError('pickupPin'); }} />
+              {fieldErrors.pickupPin && <p className="mt-1 text-xs text-rose-700" role="alert">{fieldErrors.pickupPin}</p>}
             </div>
 
             {/* Liquid Duration Picker with Metaball Split */}
@@ -409,10 +441,10 @@ export default function PostPage({ userProfile }) {
 
             <button
               type="submit"
-              disabled={loading || userProfile?.status !== 'active' || !validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, photos }).isValid}
+              disabled={loading || userProfile?.status !== 'active' || !validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, pickupPin, photoFile }).isValid}
               className="bg-gradient-to-b from-[#2c8a38] to-[#1c6428] text-white rounded-2xl py-4 px-6 w-full mt-4 font-extrabold text-[15px] shadow-lg transition-all tracking-wide"
             >
-              {loading ? (editingPostId ? 'Saving Changes...' : 'Publishing Food Drop...') : (editingPostId ? 'Save Listing Changes' : 'Publish Food Drop Live')}
+              {loading ? (photoFile ? 'Uploading Photo...' : editingPostId ? 'Saving Changes...' : 'Publishing Food Drop...') : (editingPostId ? 'Save Listing Changes' : 'Publish Food Drop Live')}
             </button>
             {editingPostId && (
               <button
@@ -453,32 +485,61 @@ export default function PostPage({ userProfile }) {
         </div>
 
         <section className="mt-10" aria-labelledby="your-listings-heading">
-          <h2 id="your-listings-heading" className="mb-4 font-['Space_Grotesk'] text-2xl font-extrabold text-[#182019]">Your Active Listings</h2>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="your-listings-heading" className="font-['Space_Grotesk'] text-2xl font-extrabold text-[#182019]">Your Listings</h2>
+              <p className="mt-1 text-xs text-[#687066]">Current listings and closed listing history appear here.</p>
+            </div>
+            <button type="button" onClick={() => loadOwnPosts({ showLoading: true })} disabled={postsLoading} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#2a382e]/15 bg-white px-3 text-xs font-bold text-[#182019] disabled:opacity-50">
+              <RefreshCw size={14} className={postsLoading ? 'animate-spin' : ''} /> Refresh
+            </button>
+          </div>
           {postsError && <p className="mb-4 text-sm text-rose-700" role="alert">{postsError}</p>}
           {postsLoading ? (
             <p className="text-sm text-[#687066]">Loading your listings...</p>
           ) : ownPosts.length === 0 ? (
-            <p className="rounded-2xl border border-[#2a382e]/10 bg-white p-5 text-sm text-[#687066]">You have no active listings to manage.</p>
+            <p className="rounded-2xl border border-[#2a382e]/10 bg-white p-5 text-sm text-[#687066]">You have no listings yet. Posts you create will appear here with their status and history.</p>
           ) : (
             <ul className="space-y-3">
               {ownPosts.map((post) => (
-                <li key={post.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#2a382e]/10 bg-white p-4">
-                  <div>
-                    <h3 className="font-bold text-[#182019]">{post.food_name}</h3>
-                    <p className="text-xs text-[#687066]">{post.quantity_remaining} of {post.quantity_total} portions remaining · {post.pickup_address}</p>
+                <li key={post.id} className="rounded-2xl border border-[#2a382e]/10 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-[#182019]">{post.food_name}</h3>
+                        <span className="rounded-full bg-[#f1f5ee] px-2.5 py-1 text-[11px] font-bold text-[#435448]">{postStatusLabel(post.status)}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-[#687066]">
+                        {post.quantity_remaining ?? 0} of {post.quantity_total} portions available · {post.pickup_address}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#687066]">Pickup window ends {post.expires_at ? new Date(post.expires_at).toLocaleString() : '—'}</p>
+                      {post.cancellation_reason && <p className="mt-2 rounded-xl bg-rose-50 p-3 text-xs text-rose-900"><b>Donor cancellation explanation:</b> {post.cancellation_reason}</p>}
+                    </div>
+                    <div className="flex gap-2">
+                      {post.status === 'active' && !post.has_claim_history && <button type="button" onClick={() => startEditing(post)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#2a382e]/15 px-3 text-xs font-bold text-[#182019]">
+                        <Pencil size={13} /> Edit
+                      </button>}
+                      {['active', 'fully_claimed'].includes(post.status) && <button type="button" onClick={() => { setCancelReasonPostId(cancelReasonPostId === post.id ? null : post.id); setCancelReason(''); }} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-rose-200 px-3 text-xs font-bold text-rose-700">
+                        <XCircle size={14} /> Cancel listing
+                      </button>}
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => startEditing(post)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#2a382e]/15 px-3 text-xs font-bold text-[#182019]">
-                      <Pencil size={13} /> Edit
-                    </button>
-                    <button type="button" disabled={archivingPostId === post.id} onClick={() => handleArchive(post)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-rose-200 px-3 text-xs font-bold text-rose-700 disabled:opacity-50">
-                      <Archive size={13} /> {archivingPostId === post.id ? 'Archiving...' : 'Archive'}
-                    </button>
-                  </div>
+                  {cancelReasonPostId === post.id && <form onSubmit={(event) => { event.preventDefault(); handleCancelPost(post); }} className="mt-4 border-t border-[#2a382e]/10 pt-4">
+                    <label htmlFor={'cancel-post-' + post.id} className="mb-1.5 block text-xs font-bold text-[#182019]">Explain why you are cancelling this listing</label>
+                    <textarea id={'cancel-post-' + post.id} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} minLength={10} maxLength={2000} rows={3} required placeholder="This explanation will be shown to people with affected claims." className="w-full rounded-xl border border-[#2a382e]/20 bg-[#fbfdf8] p-3 text-sm text-[#182019] focus:outline-none focus:ring-2 focus:ring-[#2c8a38]" />
+                    <p className="mt-1 text-[11px] text-[#687066]">Enter 10 to 2,000 characters. Affected claimants will see this explanation.</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="submit" disabled={cancellingPostId === post.id || cancelReason.trim().length < 10 || cancelReason.trim().length > 2000} className="inline-flex min-h-10 items-center rounded-xl bg-rose-700 px-4 text-xs font-bold text-white disabled:opacity-50">
+                        {cancellingPostId === post.id ? 'Cancelling listing…' : 'Confirm cancellation'}
+                      </button>
+                      <button type="button" disabled={cancellingPostId === post.id} onClick={() => { setCancelReasonPostId(null); setCancelReason(''); }} className="inline-flex min-h-10 items-center rounded-xl border border-[#2a382e]/15 px-4 text-xs font-bold text-[#354438] disabled:opacity-50">Keep listing</button>
+                    </div>
+                  </form>}
                 </li>
               ))}
             </ul>
           )}
+          <a href="/app/history" className="mt-4 inline-flex text-xs font-bold text-[#0c6b20] hover:underline">View donor requests and pickup status</a>
         </section>
 
       </main>

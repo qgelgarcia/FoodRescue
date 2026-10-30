@@ -1,5 +1,8 @@
 import { friendlyError } from './request';
+import { profileFields } from '../lib/profile-inputs';
 import { supabase, isSupabaseConfigured } from './supabase';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 
 const DEMO_USERS = {
   'admin@campus.edu': {
@@ -172,7 +175,8 @@ export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/login`
+      redirectTo: Capacitor.isNativePlatform() ? 'org.foodrescue.campus://auth/callback' : `${window.location.origin}/login`,
+      skipBrowserRedirect: Capacitor.isNativePlatform(),
     }
   });
 
@@ -180,6 +184,10 @@ export async function signInWithGoogle() {
     return { data: null, error: friendlyError(error) };
   }
 
+  if (Capacitor.isNativePlatform() && data?.url) {
+    try { await Browser.open({ url: data.url }); }
+    catch { return { data: null, error: 'Could not open Google sign-in. Please use email sign-in or try again.' }; }
+  }
   return { data, error: null };
 }
 
@@ -246,6 +254,17 @@ export async function getCurrentProfile() {
 /**
  * Listen to auth state transitions (e.g. OAuth callback completion)
  */
+export async function updateOwnProfile(fields) {
+  const values = profileFields(fields);
+  if (!isSupabaseConfigured()) throw new Error('Connect to the shared service to edit your profile.');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Sign in to edit your profile.');
+  const { data, error } = await supabase.from('profiles').update(values).eq('id', session.user.id).select().single();
+  if (error) throw new Error(friendlyError(error));
+  window.dispatchEvent(new CustomEvent('foodrescue:profile_updated', { detail: data }));
+  return data;
+}
+
 export function onAuthStateChange(callback) {
   if (!isSupabaseConfigured()) return { unsubscribe: () => {} };
   const { data: { subscription } } = supabase.auth.onAuthStateChange(callback);

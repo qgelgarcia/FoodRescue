@@ -86,7 +86,9 @@ before(async () => {
     create table storage.buckets (
       id text primary key,
       name text not null,
-      public boolean not null default false
+      public boolean not null default false,
+      file_size_limit bigint,
+      allowed_mime_types text[]
     );
     create table storage.objects (
       id uuid primary key default gen_random_uuid(),
@@ -95,6 +97,9 @@ before(async () => {
       owner uuid,
       created_at timestamptz not null default now()
     );
+    create function storage.foldername(name text)
+    returns text[] language sql immutable
+    as $$ select string_to_array(name, '/') $$;
     grant select, insert, update, delete on storage.buckets, storage.objects
       to anon, authenticated, service_role;
 
@@ -170,7 +175,13 @@ async function connectRemoteDatabase() {
            to_regprocedure('public.decide_claim_cancellation(uuid,boolean,text)') is not null as decide_cancellation,
            to_regprocedure('public.verify_food_pickup(text)') is not null as verify_pickup,
            to_regprocedure('public.complete_food_claim(uuid,text)') is not null as complete_claim,
-           to_regprocedure('public.admin_remove_food_post(uuid,text)') is not null as admin_remove
+           to_regprocedure('public.admin_remove_food_post(uuid,text)') is not null as admin_remove,
+           exists (
+             select 1 from supabase_migrations.schema_migrations
+             where version = '20261029020000'
+           ) as lifecycle_migration_applied,
+           to_regprocedure('public.cancel_food_post(uuid,text)') is not null as cancel_post,
+           to_regprocedure('public.expire_food_posts()') is not null as expire_posts
   `);
   const missing = Object.entries(result.rows[0])
     .filter(([, installed]) => installed !== true)
@@ -178,7 +189,7 @@ async function connectRemoteDatabase() {
   assert.deepEqual(
     missing,
     [],
-    'Remote DB is missing the claim workflow migration or one of its RPCs; apply the migration before remote verification.',
+    'Remote DB is missing the claim workflow or lifecycle migration/RPCs; apply the migrations before remote verification.',
   );
 
   const requiredColumns = await db.query(`
@@ -281,10 +292,17 @@ async function decideCancellation(donorId, requestId, approve, reason = null) {
   );
 }
 
+async function cancelPost(donorId, postId, reason = 'The food is no longer available') {
+  return asMember(donorId, () =>
+    db.query('select public.cancel_food_post($1, $2)', [postId, reason]),
+  );
+}
+
 async function claimState(claimId) {
   const result = await db.query(
     `select c.status as claim_status, c.quantity_claimed,
             p.status as post_status, p.quantity_remaining,
+            p.cancellation_reason,
             pa.pickup_code, pa.invalidated_at, pa.invalidation_reason
      from public.claims c
      join public.food_posts p on p.id = c.post_id
@@ -473,6 +491,12 @@ test('only the owning donor can verify an accepted pass, and one pass can comple
   const completed = await claimState(created.claim_id);
   assert.equal(completed.claim_status, 'picked_up');
   assert.ok(completed.invalidated_at);
+  const pickupNotices = await db.query(
+    `select message from public.notifications
+     where user_id = $1 and related_post_id = $2 and message like '%confirmed pickup%'`,
+    [claimant, postId],
+  );
+  assert.equal(pickupNotices.rows.length, 1, 'confirmed pickup is persisted once for the claimant');
 });
 
 test('a pending cancellation keeps stock reserved; denial preserves the pass and approval reopens once', async () => {
@@ -567,4 +591,190 @@ test('expired accepted passes and admin-removed listings cannot be picked up', a
     asMember(donor, () => db.query('select public.verify_food_pickup($1)', [removedCode])),
     'a pass for an admin-removed listing must be unusable',
   );
+});
+
+test('donor cancellation closes active claims once and preserves completed pickups', async () => {
+  const donor = await createMember({ role: 'provider' });
+  const otherDonor = await createMember({ role: 'provider' });
+  const completedClaimant = await createMember();
+  const acceptedClaimant = await createMember();
+  const pendingClaimant = await createMember();
+  const postId = await createPost(donor, { quantity: 3 });
+
+  const completed = await startClaim(postId, completedClaimant);
+  await decideClaim(donor, completed.claim_id, true);
+  const completedCode = (await claimState(completed.claim_id)).pickup_code;
+  await asMember(donor, () => db.query('select public.verify_food_pickup($1)', [completedCode]));
+
+  const accepted = await startClaim(postId, acceptedClaimant);
+  await decideClaim(donor, accepted.claim_id, true);
+  const acceptedCode = (await claimState(accepted.claim_id)).pickup_code;
+  await requestCancellation(acceptedClaimant, accepted.claim_id);
+  const acceptedRequestId = await pendingCancellationId(accepted.claim_id);
+
+  const pending = await startClaim(postId, pendingClaimant);
+  await requestCancellation(pendingClaimant, pending.claim_id);
+  const pendingRequestId = await pendingCancellationId(pending.claim_id);
+
+  const reason = 'The kitchen needs to keep this food for a campus event.';
+  await assert.rejects(cancelPost(otherDonor, postId, reason), /Only the listing donor/);
+  await assert.rejects(cancelPost(donor, postId, 'too short'), /10 to 2,000/);
+  await cancelPost(donor, postId, reason);
+
+  const post = await db.query(
+    'select status, quantity_remaining, cancellation_reason from public.food_posts where id = $1',
+    [postId],
+  );
+  assert.deepEqual(post.rows[0], {
+    status: 'removed_by_donor',
+    quantity_remaining: 0,
+    cancellation_reason: reason,
+  });
+  assert.equal((await claimState(completed.claim_id)).claim_status, 'picked_up');
+  const acceptedState = await claimState(accepted.claim_id);
+  assert.equal(acceptedState.claim_status, 'cancelled');
+  assert.ok(acceptedState.invalidated_at);
+  assert.equal(acceptedState.invalidation_reason, 'claim_cancelled');
+  const pendingState = await claimState(pending.claim_id);
+  assert.equal(pendingState.claim_status, 'rejected');
+  assert.equal(pendingState.quantity_remaining, 0, 'closed posts never release reservations');
+
+  const requests = await db.query(
+    `select id, status from public.claim_cancellation_requests
+     where id = any($1::uuid[]) order by id`,
+    [[acceptedRequestId, pendingRequestId]],
+  );
+  assert.equal(requests.rows.length, 2);
+  assert.ok(requests.rows.every((request) => request.status === 'obsolete'));
+
+  const noticesBeforeRetry = await db.query(
+    `select user_id, message from public.notifications
+     where related_post_id = $1 and message like '%' || $2 || '%' order by user_id`,
+    [postId, reason],
+  );
+  assert.deepEqual(
+    noticesBeforeRetry.rows.map((notice) => notice.user_id).sort(),
+    [acceptedClaimant, pendingClaimant].sort(),
+  );
+  assert.ok(noticesBeforeRetry.rows.every((notice) => notice.message.includes(reason)));
+  await assert.rejects(
+    asMember(donor, () =>
+      db.query('update public.food_posts set cancellation_reason = $2 where id = $1', [postId, 'tampered']),
+    ),
+    /Cancellation reasons are managed/,
+  );
+  await cancelPost(donor, postId, 'A later retry with a different explanation');
+  const noticesAfterRetry = await db.query(
+    `select count(*)::integer as count from public.notifications
+     where related_post_id = $1 and message like '%' || $2 || '%'`,
+    [postId, reason],
+  );
+  assert.equal(noticesAfterRetry.rows[0].count, 2, 'cancellation retries must not repeat notifications');
+  await assert.rejects(
+    asMember(donor, () => db.query('select public.verify_food_pickup($1)', [acceptedCode])),
+    'donor cancellation invalidates the accepted claim pass',
+  );
+});
+
+test('scheduled expiry closes active and fully reserved posts idempotently', async () => {
+  const donor = await createMember({ role: 'provider' });
+  const pickedUpMember = await createMember();
+  const pendingMember = await createMember();
+  const acceptedMember = await createMember();
+  const fullyReservedMember = await createMember();
+  const expiresInSeconds = remoteMode ? 30 : 2;
+  const activePost = await createPost(donor, { quantity: 5, expiresInSeconds });
+  const fullyReservedPost = await createPost(donor, { quantity: 1, expiresInSeconds });
+
+  const pickedUp = await startClaim(activePost, pickedUpMember);
+  await decideClaim(donor, pickedUp.claim_id, true);
+  const pickedUpCode = (await claimState(pickedUp.claim_id)).pickup_code;
+  await asMember(donor, () => db.query('select public.verify_food_pickup($1)', [pickedUpCode]));
+
+  const pending = await startClaim(activePost, pendingMember);
+  const accepted = await startClaim(activePost, acceptedMember);
+  await decideClaim(donor, accepted.claim_id, true);
+  const acceptedCode = (await claimState(accepted.claim_id)).pickup_code;
+  await requestCancellation(acceptedMember, accepted.claim_id);
+  const requestId = await pendingCancellationId(accepted.claim_id);
+
+  const fullyReserved = await startClaim(fullyReservedPost, fullyReservedMember);
+  await decideClaim(donor, fullyReserved.claim_id, true);
+  const fullyReservedCode = (await claimState(fullyReserved.claim_id)).pickup_code;
+
+  await assert.rejects(
+    asMember(donor, () => db.query('select public.expire_food_posts()')),
+    /permission/i,
+    'members cannot invoke the scheduled cleanup RPC',
+  );
+  await waitForPostDeadline(activePost);
+  await assert.rejects(
+    cancelPost(donor, activePost, 'The deadline passed before manual cancellation.'),
+    /pickup deadline has passed/,
+    'server time prevents cancellation from masking expiration before the job runs',
+  );
+  const expired = await db.query('select public.expire_food_posts() as count');
+  assert.ok(expired.rows[0].count >= 2, 'both active and fully reserved posts are expired');
+
+  const postStates = await db.query(
+    `select id, status, quantity_remaining from public.food_posts
+     where id = any($1::uuid[]) order by id`,
+    [[activePost, fullyReservedPost]],
+  );
+  assert.equal(postStates.rows.length, 2);
+  assert.ok(postStates.rows.every((post) => post.status === 'expired'));
+  assert.equal(postStates.rows.find((post) => post.id === activePost).quantity_remaining, 2);
+  assert.equal(postStates.rows.find((post) => post.id === fullyReservedPost).quantity_remaining, 0);
+  assert.equal((await claimState(pickedUp.claim_id)).claim_status, 'picked_up');
+  assert.equal((await claimState(pending.claim_id)).claim_status, 'rejected');
+  const acceptedState = await claimState(accepted.claim_id);
+  assert.equal(acceptedState.claim_status, 'expired');
+  assert.equal(acceptedState.invalidation_reason, 'pickup_expired');
+  assert.equal((await claimState(fullyReserved.claim_id)).claim_status, 'expired');
+
+  const request = await db.query(
+    'select status from public.claim_cancellation_requests where id = $1',
+    [requestId],
+  );
+  assert.equal(request.rows[0].status, 'obsolete');
+  const expiryNotices = await db.query(
+    `select user_id, message from public.notifications
+     where related_post_id = any($1::uuid[]) and message like '%pickup deadline passed%'`,
+    [[activePost, fullyReservedPost]],
+  );
+  assert.deepEqual(
+    [...new Set(expiryNotices.rows.map((notice) => notice.user_id))].sort(),
+    [donor, pendingMember, acceptedMember, fullyReservedMember].sort(),
+    'expiry informs the donor and affected claimants while preserving completed history',
+  );
+  assert.equal(expiryNotices.rows.length, 5);
+  const noticeCountBeforeRetry = await db.query(
+    `select count(*)::integer as count from public.notifications
+     where related_post_id = any($1::uuid[])`,
+    [[activePost, fullyReservedPost]],
+  );
+  assert.ok(noticeCountBeforeRetry.rows[0].count > 0);
+
+  await assert.rejects(
+    asMember(donor, () => db.query('select public.verify_food_pickup($1)', [acceptedCode])),
+    'expiry invalidates accepted pickup passes',
+  );
+  await assert.rejects(
+    asMember(donor, () => db.query('select public.verify_food_pickup($1)', [fullyReservedCode])),
+    'fully reserved post expiry invalidates pickup passes',
+  );
+  await assert.rejects(startClaim(activePost, await createMember()));
+  await assert.rejects(
+    asMember(donor, () => db.query('select public.decide_claim_cancellation($1, true, null)', [requestId])),
+    'expired claims cannot release inventory after cleanup',
+  );
+
+  const retry = await db.query('select public.expire_food_posts() as count');
+  assert.equal(retry.rows[0].count, 0, 'a second cleanup makes no repeated transitions');
+  const noticeCountAfterRetry = await db.query(
+    `select count(*)::integer as count from public.notifications
+     where related_post_id = any($1::uuid[])`,
+    [[activePost, fullyReservedPost]],
+  );
+  assert.equal(noticeCountAfterRetry.rows[0].count, noticeCountBeforeRetry.rows[0].count);
 });

@@ -1,4 +1,5 @@
 import { PASSWORD_REQUIREMENTS, phoneCountry } from './account-inputs.js';
+import { validateFoodPhotoFile } from './food-photo.js';
 const FOOD_CATEGORIES = new Set(['Meals', 'Produce', 'Bakery', 'Snacks']);
 
 export function validateFoodPostDraft({
@@ -8,6 +9,8 @@ export function validateFoodPostDraft({
   quantity,
   pickupAddress,
   duration,
+  pickupPin,
+  photoFile,
   photos,
 } = {}) {
   const errors = {};
@@ -51,8 +54,21 @@ export function validateFoodPostDraft({
     errors.duration = 'Pickup duration must be between 15 minutes and 24 hours.';
   }
 
-  if (!Array.isArray(photos) || photos.length === 0) {
-    errors.photos = 'Upload at least one display photo.';
+  const latitude = pickupPin?.lat;
+  const longitude = pickupPin?.lng;
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90
+    || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    errors.pickupPin = 'Select the pickup location on the map.';
+  }
+
+  if (Array.isArray(photos) && photos.length > 1) {
+    errors.photos = 'Choose one photo per listing.';
+  } else if (photoFile) {
+    const photoError = validateFoodPhotoFile(photoFile);
+    if (photoError) errors.photos = photoError;
+  } else if (Array.isArray(photos) && photos[0] && typeof photos[0] === 'object') {
+    const photoError = validateFoodPhotoFile(photos[0]);
+    if (photoError) errors.photos = photoError;
   }
 
   return {
@@ -64,6 +80,7 @@ export function validateFoodPostDraft({
       category,
       quantity: numericQuantity,
       pickupAddress: cleanAddress,
+      pickupPin: Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : null,
       duration: { hours, minutes },
     },
   };

@@ -1,5 +1,9 @@
 # FoodRescue Code Walkthrough
 
+Latest source and setup: [29 October implementation status](Implementation_Status_2026-10-29.md), [service contracts](Service_Contracts_FoodRescue.md) and [release setup](Release_Setup_FoodRescue.md). Prototype descriptions below are historical, not a current inventory of implemented features.
+
+This walkthrough describes the existing prototype, not completion of the newly confirmed [Design Agreement](Design_Agreement_FoodRescue.md). Local claim passes, claimant-triggered local pickup completion, the CSS map, and photo previews are current-code examples, not the required live workflows. The target requires an Android APK, shared donor approvals/cancellation/history, donor QR or manual verification, strict deadline enforcement, real maps/uploads, foreground tracking, and live audited moderation. See the updated gap notice in [Rubric Audit](Rubric_Audit.md). No code, migrations, deployed services, or APK were changed by the design interview.
+
 ## 1. One-minute explanation
 
 FoodRescue is an Ionic React application inside an npm workspace monorepo. React renders functional components, Ionic supplies mobile-friendly primitives such as `IonApp`, `IonPage`, `IonContent`, `IonHeader`, and `IonCard`, and Tailwind CSS supplies most visual styling through JSX `className` values. Supabase provides authentication, database access, storage, and row-level security. The Express TypeScript app is currently a small backend health/API service.
@@ -252,3 +256,6 @@ React here uses functional components rather than class components. There are no
 Implemented and checked in code: React routing, auth and role guards, reusable components, Ionic app/page/card primitives, responsive flex/grid layouts, loading and empty feed states, form validation, claim quantity validation, Supabase environment configuration, database constraints/RLS, protected claim RPC, backend health route, and automated validation tests.
 
 Still manual or intentionally prototype-level: testing on a physical Android/iOS device, portrait/landscape visual sign-off, production Supabase credentials, real photo upload to Storage, push/chat messaging, a real map provider, and browser end-to-end testing with real accounts. These should be demonstrated or marked honestly rather than claimed from source code alone.
+# Implementation update — 29 October 2026
+
+For the latest posting, lifecycle, journey, profile and Android source changes, see `Implementation_Status_2026-10-29.md`, `Service_Contracts_FoodRescue.md` and `Release_Setup_FoodRescue.md`. The October 29 migrations have not been applied and physical-device acceptance remains pending; the older walkthrough below must be read with that distinction.

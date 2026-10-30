@@ -19,6 +19,7 @@ import ReportsPage from './modules/reports/ReportsPage';
 import { AnimatePresence, motion } from 'motion/react';
 import { useLocation } from 'react-router-dom';
 import FloatingBottomDock from './components/layout/FloatingBottomDock';
+import CustomerHeader from './components/layout/CustomerHeader';
 
 const ADMIN_ROUTES = [
   '/admin/dashboard',
@@ -65,7 +66,9 @@ function UserModuleTabs({ userProfile }) {
   };
 
   return (
-    <div className="relative h-screen w-full overflow-hidden">
+    <div className="relative h-screen w-full overflow-hidden flex flex-col">
+      <CustomerHeader active={activeTab} userProfile={userProfile} />
+      <div className="relative flex-1 min-h-0">
       <AnimatePresence initial={false} custom={direction}>
         <motion.div
           key={location.pathname}
@@ -100,6 +103,7 @@ function UserModuleTabs({ userProfile }) {
           </Switch>
         </motion.div>
       </AnimatePresence>
+      </div>
       <FloatingBottomDock active={activeTab} />
     </div>
   );

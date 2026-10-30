@@ -1,97 +1,36 @@
 # FoodRescue — Architecture
 
-## 1. Overview
-FoodRescue is a Vite monorepo with an Ionic React frontend serving two experiences from one app shell:
-- **User module** — mobile-first, used by students/donors/claimants (Capacitor build + PWA on phones).
-- **Admin module** — same codebase, styled and routed for desktop/web use (staff moderation, analytics).
+See [Design Agreement](Design_Agreement_FoodRescue.md) for the confirmed target and [Rubric Audit](Rubric_Audit.md) for current evidence.
 
-The frontend talks directly to **Supabase** (Postgres + Auth + Storage) through `supabase-js`, secured by **Row Level Security (RLS)**. A small Express TypeScript service also exists under `apps/backend` and currently provides the health endpoint used to verify the backend deployment.
+## Target delivery
+One Ionic React/Vite codebase delivers an Android APK for donor/claimant use through Capacitor and a desktop web admin experience. Member routes remain /app/*; admin routes /admin/*; shared auth uses /login and registration. AuthGuard/RoleGuard provide navigation protection, while server authorization is the security boundary.
 
-## 2. High-Level Diagram
+Supabase supplies Auth, Postgres, Storage, atomic RPC operations, and shared updates. The existing Express TypeScript service remains a health/API boundary. No replacement backend is required by the interview.
 
-```
-┌───────────────────────────────────────────────────────────┐
-│                  IONIC REACT APP (single repo)              │
-│                                                             │
-│   /app/*  (mobile, React dock)   /admin/*  (web, admin layout)│
-│   Home Feed, Map, Create Post,   Dashboard, Users, Posts,   │
-│   My Posts, Claims, Notifs,      Reports, Broadcast, Logs   │
-│   Profile                                                   │
-└───────────────────────────┬─────────────────────────────────┘
-                            │  supabase-js client (HTTPS)
-                            ▼
-                ┌─────────────────────────┐
-                │        SUPABASE          │
-                │  Auth (JWT, roles)       │
-                │  Postgres DB + RLS       │
-                │  Realtime (channels)     │
-                │  Storage (food photos)   │
-                │  Edge Functions / Cron   │
-                │   - claim_food() RPC     │
-                │   - expire posts job     │
-                │   - notification triggers│
-                └─────────────────────────┘
-                            +
-         CSS-based campus map prototype in `MapPage.jsx`
-```
+## Required capabilities
+- Persisted donor/claimant lifecycle and history, rather than local-only claim passes.
+- Atomic reservations, cancellation decisions/releases, QR/manual pickup authorization, strict server-time deadlines, and audited moderation.
+- Interactive donor-selected pickup pins and consented foreground claimant location sharing. Map-provider selection remains an implementation decision.
+- Real photo Storage upload with agreed limits.
+- Shared in-app notifications and donor-only latest journey coordinates.
+- Android camera/location permission handling and real-device validation.
 
-## 3. Client Layer
-| Concern | Choice |
+## Deferred capabilities
+SMS provider selection and integration are deferred; intended Edge Function events are acceptance and On my way to Philippine recipients, with in-app fallback on failure. Background tracking, bans, broadcasts, and advanced analytics are deferred. Push delivery and distance sorting are not confirmed defense requirements.
+
+## Existing source and gaps
+| Concern | Current location |
 |---|---|
-| Framework | React 18 + Ionic React |
-| Mobile packaging | Capacitor (Android/iOS) |
-| Admin packaging | Same build, deployed as static PWA/web app |
-| State/data access | React hooks and plain JavaScript service modules |
-| Maps | CSS-based campus map prototype in `MapPage.jsx` |
-| Notifications | Claim feedback banners and local pickup events; push messaging is not implemented |
-| Styling | Tailwind utility classes, `styles.css`, and selected Ionic primitives |
+| Entry / routes | apps/frontend/src/main.jsx, App.jsx |
+| Screens | apps/frontend/src/components |
+| Auth / admin | apps/frontend/src/modules |
+| Guards | apps/frontend/src/guards |
+| Data services | apps/frontend/src/services |
+| Shared types | packages/shared/src/index.ts |
+| Health service | apps/backend/src |
+| Schema / RPC / RLS | supabase/migrations |
 
-## 4. Backend Layer (Supabase)
-| Concern | Choice |
-|---|---|
-| Database | Postgres |
-| Auth | Supabase Auth (email/password; JWT issued per session) |
-| Authorization | Row Level Security policies per table, role stored in `profiles.role` |
-| Realtime | Postgres Changes subscriptions on `food_posts` and `claims` |
-| File storage | Supabase Storage bucket `food-photos` |
-| Server-side logic | Postgres functions (RPC) for atomic operations (e.g. `claim_food`) |
-| Scheduled jobs | `pg_cron` for auto-expiring posts |
+Current MapPage is a CSS prototype. Current food.js still stores local claim passes and local pickup completion even after a configured claim RPC. Existing SQL/types lack new lifecycle and verification data. These are implementation gaps, not approved substitutes.
 
-## 5. Routing Split (one app, two experiences)
-```
-/login                → shared auth screen
-/app/*                → user module (mobile-first)
-/admin/*              → admin module (web-first), guarded by RoleGuard
-```
-- `AuthGuard` — blocks unauthenticated access to both `/app/*` and `/admin/*`.
-- `RoleGuard` — restricts `/admin/*` to users with `profiles.role = 'admin'`, enforced both client-side (UX) and server-side (RLS, real security boundary).
-
-## 6. Deployment Model
-| Component | Deployment |
-|---|---|
-| Mobile app | Capacitor build → Google Play / App Store, or installed as PWA |
-| Admin panel | Same repo build, deployed as a static site (Netlify/Vercel/Firebase Hosting) reachable via browser |
-| Backend | Express health service plus Supabase database/Auth/Storage |
-| Images | Supabase Storage, public-read bucket for post photos |
-
-**Recommended for this project:** Option A — single deployment, one PWA bundle, role-based redirect after login. Simpler to build, run, and demo than maintaining two separate bundles.
-
-## 7. Key Architectural Decisions
-1. **Supabase-first data access** — the frontend uses `supabase-js` for authenticated CRUD and the Express service remains a small health/API boundary.
-2. **Security lives in the database (RLS)**, not just in app code — prevents a student from bypassing rules by editing client code.
-3. **Atomic quantity decrement via Postgres RPC function**, not app-side read-then-write, to prevent race conditions when multiple users claim the same post simultaneously.
-4. **Realtime subscriptions** replace the need for Socket.io — Supabase pushes DB changes directly to subscribed clients.
-5. **One Ionic React codebase** for both user and admin, differentiated by route guards and layout components, reducing duplication of auth/services code.
-
-## 8. Actual Source Locations
-| Concern | Repository location |
-|---|---|
-| React entry point and Ionic app shell | `apps/frontend/src/main.jsx` |
-| Routes and guards | `apps/frontend/src/App.jsx`, `apps/frontend/src/guards/` |
-| User screens | `apps/frontend/src/components/` |
-| Login/register screens | `apps/frontend/src/modules/auth/` |
-| Reusable UI effects | `apps/frontend/src/components/ui/calamansi/` |
-| Supabase client and data services | `apps/frontend/src/services/` |
-| Shared TypeScript interfaces | `packages/shared/src/index.ts` |
-| Express server and health route | `apps/backend/src/` |
-| Database schema, RLS, and RPC | `supabase/migrations/` |
+## Deployment evidence
+Build and install the APK on test phones, deploy the web admin, and use separate real Supabase accounts. Verify shared results from another account, camera scanning, GPS denial/stale updates, upload failures, strict cutoff, replay prevention, and moderation auditing. No live deployment or device result is asserted by this design document.

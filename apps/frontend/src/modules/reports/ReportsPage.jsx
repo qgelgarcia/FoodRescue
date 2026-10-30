@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useHistory, useLocation } from 'react-router-dom';
-import CustomerHeader from '../../components/layout/CustomerHeader';
 import PageShell from '../../components/layout/PageShell';
 import { getFoodPosts } from '../../services/food';
 import { getMyReports, submitReport } from '../../services/reports';
+import './report-page.css';
 
 export default function ReportsPage({ userProfile }) {
   const history = useHistory();
@@ -68,9 +68,8 @@ export default function ReportsPage({ userProfile }) {
   }
 
   return <PageShell>
-    <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
-      <CustomerHeader active="profile" userProfile={userProfile} />
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
+    <div className="reports-page h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
+      <main className="reports-main flex-1 max-w-4xl w-full mx-auto px-4 py-8">
         <div className="page-header"><h1>Reports &amp; Support</h1><p>Send a concern to the campus admin team and track only your own reports here.</p></div>
         <section className="admin-panel member-report-panel">
           {error && <p className="admin-feedback" role="alert">{error}</p>}
@@ -100,7 +99,7 @@ export default function ReportsPage({ userProfile }) {
             : reports.length ? <div className="admin-table-wrapper"><table className="admin-table"><thead><tr><th>Target</th><th>Your explanation</th><th>Status</th><th>Submitted</th></tr></thead><tbody>
               {reports.map((report) => <tr key={report.id}>
                 <td>{report.target_type}: {report.target_label || 'Unavailable'}</td><td className="admin-long-text">{report.reason}</td>
-                <td>{report.status}{report.resolution_explanation && <small className="admin-subtext">{report.resolution_explanation}</small>}</td>
+                <td><span className="report-status">{report.status}</span>{report.resolution_explanation && <small className="admin-subtext">{report.resolution_explanation}</small>}</td>
                 <td>{new Date(report.created_at).toLocaleString()}</td>
               </tr>)}
             </tbody></table></div>

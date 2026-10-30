@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateClaimQuantity, validateFoodPostDraft } from './validation.js';
+import { MAX_FOOD_PHOTO_BYTES, validateFoodPhotoFile } from './food-photo.js';
 
 const validDraft = {
   foodName: 'Vegetable rice bowls',
@@ -9,6 +10,7 @@ const validDraft = {
   quantity: '12',
   pickupAddress: 'Student Union, counter 2',
   duration: { hours: 3, minutes: 0 },
+  pickupPin: { lat: 14.5995, lng: 120.9842 },
   photos: ['data:image/png;base64,preview'],
 };
 
@@ -21,6 +23,20 @@ test('accepts a complete food post draft and normalizes values', () => {
   assert.equal(result.values.foodName, 'Vegetable rice bowls');
 });
 
+test('accepts a listing without a photo', () => {
+  const draft = { ...validDraft };
+  delete draft.photos;
+  assert.equal(validateFoodPostDraft(draft).isValid, true);
+});
+
+test('photo validation allows one JPEG, PNG, or WebP up to 5 MB', () => {
+  for (const type of ['image/jpeg', 'image/png', 'image/webp']) {
+    assert.equal(validateFoodPhotoFile({ type, size: MAX_FOOD_PHOTO_BYTES }), null);
+  }
+  assert.match(validateFoodPhotoFile({ type: 'image/gif', size: 10 }), /JPEG, PNG, or WebP/);
+  assert.match(validateFoodPhotoFile({ type: 'image/jpeg', size: MAX_FOOD_PHOTO_BYTES + 1 }), /5 MB/);
+});
+
 test('rejects invalid food post fields', () => {
   const result = validateFoodPostDraft({
     ...validDraft,
@@ -28,7 +44,8 @@ test('rejects invalid food post fields', () => {
     category: 'Invalid',
     quantity: '0',
     duration: { hours: 0, minutes: 5 },
-    photos: [],
+    pickupPin: null,
+    photoFile: { type: 'image/gif', size: 10 },
   });
 
   assert.equal(result.isValid, false);
@@ -36,6 +53,7 @@ test('rejects invalid food post fields', () => {
   assert.ok(result.errors.category);
   assert.ok(result.errors.quantity);
   assert.ok(result.errors.duration);
+  assert.ok(result.errors.pickupPin);
   assert.ok(result.errors.photos);
 });
 

@@ -1,59 +1,54 @@
 # FoodRescue — Rules
 
-## 1. Business Rules
+Confirmed target rules; existing migrations and UI do not yet enforce every rule. [Design Agreement](Design_Agreement_FoodRescue.md) and the root glossary define the agreed terminology.
 
-### 1.1 Posting
-- BR-1: A post's `quantity_total` must be a positive integer.
-- BR-2: A post must have a pickup location (lat/lng + address) and an `expires_at` in the future at creation time.
-- BR-3: Only the donor who created a post may edit or cancel it (unless overridden by an admin).
-- BR-4: A post cannot be edited once it has any `accepted` or `picked_up` claims against it, except to shorten (never extend) the deadline.
+## Posts and reservations
+- Positive integer portions; required food name, pickup pin/address/instructions, and future deadline.
+- Only the owning donor may edit or cancel a post, except authorized admin removal.
+- After the first claim, food details, quantity, location, deadline, and photo stay locked even if the claim later ends.
+- A member cannot claim their own post or submit new claims while suspended.
+- Submission immediately reserves portions in one atomic transaction; never oversell.
+- At most one pending/accepted claim per member per post; completed pickup blocks another claim. Rejected/cancelled claims permit a new eligible request.
+- Zero available portions means fully reserved, not necessarily collected. Release a reservation once; reopen before the deadline unless cancelled/removed.
 
-### 1.2 Claiming
-- BR-5: A claim's `quantity_claimed` must be ≤ the post's current `quantity_remaining` at the moment of claiming.
-- BR-6: A user cannot claim their own post.
-- BR-7: A user may have multiple pending claims across different posts, but only one active (non-cancelled, non-rejected) claim per post.
-- BR-8: When `quantity_remaining` reaches 0, the post status changes to `fully_claimed` and it disappears from the active feed.
-- BR-9: A claim can only move `pending → accepted/rejected` by the donor, and `accepted → picked_up` by the donor confirming.
-- BR-10: A claimant may cancel only while their claim is `pending`.
+## Claim transitions
+| Event | Result |
+|---|---|
+| Donor accepts pending claim | accepted; pickup authorization becomes available |
+| Donor rejects pending claim | rejected; release reservation once |
+| Claimant requests cancellation | keep pending/accepted state and reservation; explanation required |
+| Donor approves cancellation | cancelled; release once if post can reopen; invalidate pickup authorization |
+| Donor denies cancellation | preserve prior state and accepted pickup authorization |
+| Donor verifies pickup | accepted → picked_up; consume authorization once; whole quantity only |
+| Deadline arrives | pending → rejected; accepted → expired |
+| Donor cancels post / admin removes post | pending → rejected; accepted → cancelled; invalidate authorization |
 
-### 1.3 Expiration
-- BR-11: Once `expires_at` passes, the post automatically becomes `expired` regardless of remaining quantity, and is hidden from the public feed (still visible in the donor's own history).
-- BR-12: Pending claims on an expired post are automatically marked `rejected` (food is no longer available/safe).
+Cancellation approval, rejection, and pickup must serialize conflicting actions so only one valid result commits. Pending cancellation requests must not leave reservations stranded after terminal closure.
 
-### 1.4 Notifications
-- BR-13: A `new_post_nearby` notification is only sent to users within a defined radius (default: campus-wide or a configurable distance) of the pickup location.
-- BR-14: A `pickup_reminder` is sent a set time before `expires_at` (default: 30 minutes) to the donor and any accepted claimants.
+## Deadlines and closure
+- At or after the deadline, reject new claims and pickup confirmation on the server, regardless of scheduled job timing or stale status.
+- Hide past-deadline posts from discovery immediately. Scheduled processing persists final states and notifications, including fully reserved posts.
+- Never extend or shorten the deadline after a first claim.
+- Explained donor cancellation closes the post. Explained admin removal also closes it and audits the action.
+- Preserve claims and reports in history; completed pickups remain unchanged. Uncollected expired/cancelled claims are not redistributed food.
 
-### 1.5 History & Accountability
-- BR-15: Every claim, regardless of final status, remains permanently in the `claims` table for history/audit — no hard deletes.
-- BR-16: A user's history should reflect both roles: posts they've donated and claims they've made.
+## Pickup and location
+- QR contains an opaque token, not personal/food details. It is verification, not end-to-end encryption.
+- QR and manual fallback verify the same authorization: current donor owns post, claim accepted, deadline not reached, post not closed, authorization unused.
+- Claimants cannot self-confirm pickup; scans/retries cannot double-count it.
+- On my way is optional and once per accepted unexpired claim.
+- Journey sharing requires consent, is donor-only, and foreground-only. Denial/unavailable GPS never blocks pickup.
+- Keep latest location only; show freshness; delete coordinates on manual stop, pickup, effective cancellation, removal, or expiration.
 
-## 2. Moderation & Admin Rules
-- BR-17: Only accounts with `role = 'admin'` may access `/admin/*` routes and admin-only tables/actions.
-- BR-18: Admin accounts are not self-registrable through the public sign-up form; they are provisioned directly in the database or by an existing admin.
-- BR-19: Any admin action that modifies another user's data (ban, post removal, report resolution) must be recorded in `admin_logs` with actor, action, target, and timestamp — no silent admin actions.
-- BR-20: A `suspended` user can log in but cannot post or claim; a `banned` user cannot log in at all.
-- BR-21: Reports must be reviewed by an admin and marked `reviewed` or `resolved` — they cannot be deleted, to preserve an audit trail.
-
-## 3. Security Rules (enforced via RLS, not just client code)
-- SR-1: A user can only `select`/`update` their own `profiles` row, except admins, who can view all.
-- SR-2: A user can only `insert`/`update` `food_posts` where `donor_id = auth.uid()`, except admins.
-- SR-3: A user can only view active posts or their own posts; hidden/expired/removed posts are not queryable by regular users.
-- SR-4: A user can only `insert` claims where `claimant_id = auth.uid()`.
-- SR-5: A donor can only update the status of claims tied to posts they own.
-- SR-6: A user can only view notifications where `user_id = auth.uid()`.
-- SR-7: Quantity decrements must go through the `claim_food` RPC function (`security definer`) — direct client-side `update` on `quantity_remaining` is blocked by RLS policy design (no direct update policy grants that column to regular users).
-- SR-8: All destructive or role-elevated actions (ban, remove post, resolve report) require `profiles.role = 'admin'`, checked inside the RLS policy itself, not just hidden in the UI.
-
-## 4. Validation Rules (client + DB constraints)
-- VR-1: Email must be valid format; password minimum 8 characters (enforced by Supabase Auth).
-- VR-2: `food_name` and `pickup_address` are required, non-empty strings.
-- VR-3: `quantity_total > 0` and `quantity_remaining >= 0` (DB check constraints).
-- VR-4: `expires_at` must be a future timestamp at creation (validated client-side before insert; can add a DB check constraint referencing `created_at`).
-- VR-5: `quantity_claimed > 0` and cannot exceed remaining quantity (enforced in the `claim_food` function, not just the UI).
-- VR-6: File uploads to `food-photos` limited to image types and a reasonable size cap (e.g. 5MB) via Storage bucket policy.
-
-## 5. UX Rules
-- UXR-1: Expired posts must never appear in the active feed, even briefly — rely on the scheduled job, not just a client-side date filter, since the job also blocks new claims server-side.
-- UXR-2: Countdown timers update live client-side (no need to re-fetch every second) but should re-sync with server `expires_at` periodically to avoid client clock drift.
-- UXR-3: Any action that can fail due to concurrency (e.g., "claim just ran out") must show a clear, friendly error, not a raw exception message.
+## Moderation, reports, and security
+- Admin accounts are not publicly self-registrable.
+- Suspension blocks new posts/claims but preserves existing arrangements. Reactivation removes the restriction.
+- Post removal requires an explanation, rejection/cancellation of outstanding claims, invalidation of tokens, affected-member in-app notifications, and an audit record.
+- Any signed-in non-admin, including suspended members, may report posts/other members with an explanation; self-reporting blocked.
+- Own report status is visible to its reporter. Admins review then resolve with an explanation; do not delete reports.
+- Audit every moderation change with actor, action, target, and timestamp; record applicable explanations.
+- Enforce authorization in database policies and validated server operations. RLS alone does not restrict writable columns or enforce lifecycle transitions.
+- Do not expose phone numbers or journey coordinates through broad profile/map reads; journey access belongs only to the specified donor.
+- Direct client inventory, claim-state, role/status, pickup-token, and audit mutations must not bypass validated operations.
+- One optional JPEG/PNG/WebP photo, maximum 5 MB, with ownership-based upload enforcement.
+- SMS setup is deferred. If sending fails when later enabled, notify in-app and preserve the underlying action.

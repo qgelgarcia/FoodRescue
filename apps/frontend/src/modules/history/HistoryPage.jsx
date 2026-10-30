@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ClipboardList, RefreshCw, Ticket } from 'lucide-react';
-import CustomerHeader from '../../components/layout/CustomerHeader';
 import PageShell from '../../components/layout/PageShell';
 import { DonorClaimCard, MyClaimCard } from '../../components/claims/ClaimCard';
 import PickupVerificationPanel from '../../components/claims/PickupVerificationPanel';
 import { decideCancellation, decideClaim, getDonorClaims, getMyClaims, requestCancellation, verifyPickup } from '../../services/claims';
+import { getDonorJourneyLocations, notifyDonorOnMyWay } from '../../services/journey';
 import { friendlyError } from '../../services/request';
 
 const REFRESH_MS = 15000;
@@ -31,7 +31,17 @@ export default function HistoryPage({ userProfile }) {
     try {
       const data = which === 'mine' ? await getMyClaims() : await getDonorClaims();
       if (sequence !== requestSequence.current[which]) return false;
-      const rows = Array.isArray(data) ? data : [];
+      let rows = Array.isArray(data) ? data : [];
+      if (which === 'donor' && rows.length) {
+        try {
+          const journeys = await getDonorJourneyLocations(rows.map((claim) => claim.id));
+          const byClaim = new Map(journeys.map((journey) => [journey.claim_id, journey]));
+          rows = rows.map((claim) => ({ ...claim, journey: byClaim.get(claim.id) || null }));
+        } catch {
+          rows = rows.map((claim) => ({ ...claim, journey: null, journey_unavailable: true }));
+        }
+      }
+      if (sequence !== requestSequence.current[which]) return false;
       if (which === 'mine') setMyClaims(rows);
       else setDonorClaims(rows);
       if (tabRef.current === which) setError('');
@@ -102,6 +112,11 @@ export default function HistoryPage({ userProfile }) {
         : claim)));
   }
 
+  function onOnMyWay(claimId) {
+    return runAction(`on-my-way:${claimId}`, 'The donor was notified that you are on your way.',
+      () => notifyDonorOnMyWay(claimId));
+  }
+
   function onDecideClaim(claimId, accept, reason) {
     const key = `claim-decision:${claimId}:${accept ? 'accept' : 'reject'}`;
     return runAction(key, accept ? 'Claim accepted.' : 'Claim rejected.',
@@ -140,7 +155,6 @@ export default function HistoryPage({ userProfile }) {
   return (
     <PageShell>
       <div className="relative flex h-full w-full flex-col overflow-y-auto pb-28 font-['DM_Sans',sans-serif]">
-        <CustomerHeader active="history" userProfile={userProfile} />
 
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-7 sm:py-9">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -171,7 +185,7 @@ export default function HistoryPage({ userProfile }) {
           {tab === 'mine' ? <section id="my-claims-panel" role="tabpanel" aria-labelledby="my-claims-tab">
             {currentLoading && !selectedRows.length ? <div className="rounded-3xl border border-[#dce4d7] bg-white p-10 text-center text-sm text-[#536054]" role="status">Loading your claims…</div>
               : selectedRows.length ? <div className="space-y-4">
-                {myClaims.map((claim) => <MyClaimCard key={claim.id} claim={claim} busyAction={busyAction} onRequestCancellation={onRequestCancellation} />)}
+                {myClaims.map((claim) => <MyClaimCard key={claim.id} claim={claim} busyAction={busyAction} onRequestCancellation={onRequestCancellation} onOnMyWay={onOnMyWay} />)}
               </div>
                 : <div className="rounded-3xl border border-[#dce4d7] bg-white p-10 text-center shadow-sm">
                   <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-[#0c6b20]"><Ticket size={23} /></span>

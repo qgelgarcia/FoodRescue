@@ -3,6 +3,9 @@ import { CalendarClock, MapPin, PackageCheck, UserRound } from 'lucide-react';
 import ClaimStatusBadge from './ClaimStatusBadge';
 import PickupPass from './PickupPass';
 import ReasonForm from './ReasonForm';
+import ClaimantJourneyControls from './ClaimantJourneyControls';
+import JourneyLocationMap from './JourneyLocationMap';
+import PickupLocationMap from './PickupLocationMap';
 
 function formatDate(value) {
   if (!value) return '';
@@ -60,7 +63,7 @@ function CancellationHistory({ claim, audience }) {
   );
 }
 
-export function MyClaimCard({ claim, busyAction, onRequestCancellation }) {
+export function MyClaimCard({ claim, busyAction, onRequestCancellation, onOnMyWay }) {
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [reason, setReason] = useState('');
   const canCancel = ['pending', 'accepted'].includes(claim.status);
@@ -80,8 +83,10 @@ export function MyClaimCard({ claim, busyAction, onRequestCancellation }) {
     <CardFrame claim={claim}>
       {claim.is_sample && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">Preview only. This example is read-only and has no live pickup pass.</p>}
       <CancellationHistory claim={claim} audience="claimant" />
+      {!claim.is_sample && ['pending', 'accepted'].includes(claim.status) && <PickupLocationMap claim={claim} />}
       {!claim.is_sample && claim.status === 'pending' && <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">Your portions are reserved while the donor reviews this claim. Pickup becomes available after acceptance.</p>}
       {!claim.is_sample && claim.status === 'accepted' && <PickupPass claim={claim} />}
+      {!claim.is_sample && claim.status === 'accepted' && <ClaimantJourneyControls claim={claim} busyAction={busyAction} onOnMyWay={onOnMyWay} />}
       {!claim.is_sample && canCancel && requestPending && <p className="mt-3 text-xs font-semibold text-[#687066]">You can request another cancellation only after this request is decided.</p>}
       {!claim.is_sample && canCancel && !requestPending && !showCancelForm && (
         <div className="mt-3">
@@ -138,6 +143,10 @@ export function DonorClaimCard({ claim, busyAction, onDecideClaim, onDecideCance
     <CardFrame claim={claim}>
       {claim.is_sample && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">Preview only. Example request; no donor actions are available.</p>}
       {!claim.is_sample && <CancellationHistory claim={claim} audience="donor" />}
+      {!claim.is_sample && claim.status === 'accepted' && claim.on_my_way_at && <>
+        <p className="mt-3 text-xs text-[#536054]">Claimant marked on the way at {formatDate(claim.on_my_way_at)}.</p>
+        <JourneyLocationMap journey={claim.journey} unavailable={claim.journey_unavailable} title={claim.post_title} />
+      </>}
       {cancellationPending && !claim.is_sample && (
         <div className="mt-3 flex flex-wrap gap-2">
           <button

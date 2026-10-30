@@ -3,11 +3,11 @@ import L from 'leaflet';
 import { renderToStaticMarkup } from 'react-dom/server';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, Navigation, RefreshCw, LocateFixed, UtensilsCrossed, Apple, Croissant, Cookie } from 'lucide-react';
-import CustomerHeader from '../../components/layout/CustomerHeader';
 import PageShell from '../../components/layout/PageShell';
 import { getFoodPosts } from '../../services/food';
 import { friendlyError } from '../../services/request';
 import { availableMapPosts, hasPickupCoordinates } from '../../lib/map';
+import { useSharedRefresh } from '../../lib/shared-refresh';
 
 const CATEGORY_ICONS = { Meals: UtensilsCrossed, Produce: Apple, Bakery: Croissant, Snacks: Cookie };
 
@@ -30,6 +30,12 @@ export default function MapPage({ userProfile }) {
   useEffect(() => () => { locationRequest.current += 1; }, []);
   const available = availableMapPosts(posts);
   const located = available.filter(hasPickupCoordinates);
+  useSharedRefresh(() => {
+    getFoodPosts().then(data => {
+      setPosts(previous => JSON.stringify(previous) === JSON.stringify(data) ? previous : data);
+      setError('');
+    }).catch(reason => setError(friendlyError(reason)));
+  });
 
   useEffect(() => {
     let active = true;
@@ -135,7 +141,6 @@ export default function MapPage({ userProfile }) {
 
   return <PageShell>
     <div className="h-full w-full overflow-y-auto flex flex-col pb-28">
-      <CustomerHeader active="map" userProfile={userProfile} />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
         <div className="pickup-map-heading">
           <div><span className="preview-eyebrow"><MapPin size={14} /> CAMPUS RESCUE MAP</span><h1>Pickup Map</h1><p>Explore available food and choose a pickup point to see its details.</p></div>

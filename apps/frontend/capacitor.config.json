@@ -1,0 +1,6 @@
+{
+  "appId": "org.foodrescue.campus",
+  "appName": "FoodRescue",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" }
+}

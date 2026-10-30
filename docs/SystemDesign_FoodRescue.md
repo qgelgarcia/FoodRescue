@@ -1,108 +1,29 @@
 # FoodRescue — System Design
 
-## 1. Actors
-- **Student** — can post food, claim food, receive notifications.
-- **Org/Provider** — same permissions as student, typically posts larger quantities.
-- **Admin** — moderates users, posts, reports; has no posting/claiming role by default.
-- **System (scheduled jobs)** — expires posts, sends reminders.
+Target design confirmed in [Design Agreement](Design_Agreement_FoodRescue.md); not implementation evidence.
 
-## 2. Core Modules
-```
-Auth Module ──┬── User Module ──┬── Home Feed
-              │                 ├── Map View
-              │                 ├── Create Post
-              │                 ├── My Posts
-              │                 ├── Claim Food
-              │                 ├── My Claims
-              │                 ├── Notifications
-              │                 └── History / Profile
-              │
-              └── Admin Module ─┬── Dashboard
-                                ├── User Management
-                                ├── Post Moderation
-                                ├── Reports Queue
-                                ├── Claims Monitor
-                                ├── Broadcast
-                                └── Activity Logs
-```
+## Actors and modules
+Students, organizations, and providers can be donors or claimants. Admins moderate through the desktop web panel. The Android APK contains auth, feed, live map, posting, donor claims, own claims/history, profile, and notification experiences.
 
-## 3. Data Flow: Creating a Post
-```
-Donor fills form
-   → uploads photo to Supabase Storage (food-photos bucket)
-   → gets public URL
-   → inserts row into food_posts (status='active')
-   → RLS policy checks donor_id = auth.uid()
-   → Realtime broadcasts INSERT to subscribed feed clients
-   → nearby users' feeds update live / receive push notification
-```
+## Shared operations
+1. Posting uploads an optional validated photo to Storage, then persists the offering with a donor-selected pin, address, instructions, and deadline.
+2. Claim submission validates identity, account status, non-ownership, per-person eligibility, deadline, and quantity; atomically reserves inventory and inserts a pending claim.
+3. Donor acceptance/rejection updates the persisted claim and notifies the claimant. Rejection releases once and may reopen a fully reserved post.
+4. Cancellation requests store an explanation separately from the claim lifecycle. Donor approval cancels and releases once; denial leaves the prior state intact.
+5. On my way records one departure notice. Consented foreground location updates store only the latest point with its update time, readable only by the claim's donor.
+6. QR scan or manual code submits pickup authorization to a server operation that validates donor ownership, accepted state, deadline, and single use, then atomically confirms the whole pickup.
+7. Deadline processing rejects pending claims and expires accepted uncollected claims; all claim/pickup operations enforce the timestamp independently of the job.
+8. Donor cancellation/admin removal closes the post and its outstanding claims, invalidates tokens, clears journey coordinates, and persists notifications. Admin removal also writes an audit entry in the same transaction.
 
-## 4. Data Flow: Claiming Food (Race-Condition-Safe)
-```
-Claimant taps "Claim", enters qty
-   → client calls supabase.rpc('claim_food', { post_id, claimant_id, qty })
-   → Postgres function (SECURITY DEFINER):
-        1. UPDATE food_posts SET quantity_remaining -= qty
-           WHERE id = post_id AND quantity_remaining >= qty
-        2. IF no row updated → raise exception "not enough remaining"
-        3. INSERT INTO claims (...)
-   → transaction commits atomically (single DB transaction)
-   → Realtime pushes updated quantity_remaining to all viewers
-   → notification inserted for donor (claim_received)
-```
-This design guarantees no two simultaneous claims can oversell the same post, because the `UPDATE ... WHERE quantity_remaining >= qty` clause fails safely under concurrent access without needing app-level locks.
+## Consistency and access
+Serialize inventory and claim lifecycle changes with database transactions. Concurrent pickup/cancellation/removal must not both succeed. Realtime/shared refresh reads canonical persisted state, not local claim passes. Feed reads require active status and a future deadline; claimants retain access to related closed-post details for history.
 
-## 5. Data Flow: Post Expiration (Scheduled)
-```
-pg_cron job runs every 5 minutes:
-   UPDATE food_posts SET status = 'expired'
-   WHERE status = 'active' AND expires_at < now();
-   → Realtime pushes UPDATE → feeds drop expired posts automatically
-```
+RLS restricts row visibility; server operations and restricted grants enforce fields, actor permissions, state transitions, and deadlines. Audit rows and notifications are written as part of relevant shared operations. Broad unrestricted admin CRUD must not bypass mandatory auditing.
 
-## 6. Data Flow: Admin Moderation
-```
-Admin opens Post Moderation
-   → RLS "admin_full_access_posts" policy grants full read/write
-   → Admin removes a violating post
-       → UPDATE food_posts SET status = 'removed_by_admin'
-       → INSERT INTO admin_logs (admin_id, action, target_id)
-   → Realtime pushes update; post disappears from user feeds
-```
+## Notifications and SMS
+Persist in-app notifications for decisions and closure events. SMS is deferred: eventual Edge Functions send acceptance to claimant and departure to donor for Philippine numbers. Provider/setup is unresolved; failures fall back in-app without undoing the action. No automatic SMS retry policy has been agreed.
 
-## 7. Sequence Diagram — Full Claim Lifecycle
-```
-Claimant        App (Ionic)         Supabase (RPC)        Postgres           Donor
-   |                |                     |                   |                |
-   |--tap Claim---->|                     |                   |                |
-   |                |--rpc claim_food()-->|                   |                |
-   |                |                     |--atomic UPDATE---->|                |
-   |                |                     |--INSERT claim----->|                |
-   |                |<--success-----------|                   |                |
-   |<--claim pending|                     |                   |                |
-   |                |                     |--Realtime push------------------->|
-   |                |                     |                   |   claim_received notif
-   |                |                                                          |--Accept-->|
-   |                |<----------------------- Realtime push (claim accepted)---|
-   |<--notified-----|                     |                   |                |
-   |--(pickup in person)---------------------------------------------------->|
-   |                |                                                          |--mark picked_up-->|
-   |                |<----------------------- Realtime push (status=picked_up)-|
-```
+## Implementation locations
+Current client/data modules are JavaScript under apps/frontend/src/services; user components under apps/frontend/src/components; auth/admin under modules; guards under guards. Shared interfaces are in packages/shared/src/index.ts. SQL migrations are under supabase/migrations. Existing Express service is under apps/backend/src.
 
-## 8. Non-Functional Design Considerations
-- **Indexing:** index `food_posts(status, expires_at)` and `food_posts(pickup_lat, pickup_lng)` for feed queries; index `claims(post_id)` and `claims(claimant_id)`.
-- **Geo-sorting:** for v1, distance sort can be computed client-side with the Haversine formula on lat/lng pulled from active posts (small dataset for a campus scope); PostGIS is a future upgrade if scale demands it.
-- **Security boundary:** RLS is the actual enforcement layer; client-side route guards are UX convenience only.
-- **Failure handling:** `claim_food` RPC raises an exception on insufficient quantity, which the client catches and shows as "Sorry, this was just claimed by someone else."
-
-## 9. Component Responsibility Matrix
-| Component | Responsibility |
-|---|---|
-| `supabase.service.ts` | Initializes client, exposes auth session observable |
-| `posts.service.ts` | CRUD for `food_posts`, subscribes to Realtime channel |
-| `claims.service.ts` | Calls `claim_food` RPC, manages claim status updates |
-| `notifications.service.ts` | Reads/writes `notifications`, marks read |
-| `admin.service.ts` | Admin-only queries (users, reports, logs, broadcast) |
-| `RoleGuard` | Blocks non-admins from `/admin/*` routes client-side |
-| `AuthGuard` | Blocks unauthenticated access to any protected route |
+Future operation names and new module boundaries are implementation choices, not already available APIs. Consult Database_FoodRescue.md for required data-model changes.

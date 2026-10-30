@@ -1,12 +1,15 @@
 import { DEFAULT_POSTS } from './sample-food';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { readStoredArray, validateClaimQuantity } from '../lib/validation';
-import { ClaimWorkflowError, claimRequestError } from '../lib/claim-inputs';
+import { cancellationReason, ClaimWorkflowError, claimRequestError } from '../lib/claim-inputs';
+import { FoodPhotoError } from '../lib/food-photo';
+import { foodPhotoPathFromUrl, removeFoodPhoto, uploadFoodPhoto } from './food-photos';
 
 
 const LOCAL_STORAGE_CLAIMS_KEY = 'foodrescue_claims_v1';
 const LOCAL_STORAGE_POSTS_KEY = 'foodrescue_local_posts_v1';
 const LOCAL_STORAGE_INVENTORY_KEY = 'foodrescue_inventory_v1';
+const DEFAULT_FOOD_IMAGE = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80';
 
 function readStoredObject(key) {
   try {
@@ -52,10 +55,14 @@ export async function getFoodPosts() {
 /**
  * Create a new surplus food listing
  */
-export async function createFoodPost({ foodName, description, category, quantity, pickupAddress, expiresHours = 3, photoUrl }) {
+export async function createFoodPost({ foodName, description, category, quantity, pickupAddress, pickupPin, expiresHours = 3, photoFile }) {
   const parsedQuantity = Number(quantity);
   if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1 || parsedQuantity > 100) {
     throw new Error('Portions must be a whole number from 1 to 100.');
+  }
+  if (!Number.isFinite(pickupPin?.lat) || pickupPin.lat < -90 || pickupPin.lat > 90
+    || !Number.isFinite(pickupPin?.lng) || pickupPin.lng < -180 || pickupPin.lng > 180) {
+    throw new Error('Select the pickup location on the map.');
   }
 
   const expiresAt = new Date(Date.now() + expiresHours * 3600 * 1000).toISOString();
@@ -66,29 +73,47 @@ export async function createFoodPost({ foodName, description, category, quantity
       throw new Error('Please sign in before publishing a food listing.');
     }
 
-    const { data, error } = await supabase
-      .from('food_posts')
-      .insert({
-        donor_id: session.user.id,
-        food_name: foodName,
-        description,
-        category: category || 'Meals',
-        quantity_total: parsedQuantity,
-        quantity_remaining: parsedQuantity,
-        pickup_address: pickupAddress,
-        pickup_lat: 37.7749,
-        pickup_lng: -122.4194,
-        photo_url: photoUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
-        expires_at: expiresAt,
-        status: 'active'
-      })
-      .select()
-      .maybeSingle();
+    const postId = crypto.randomUUID();
+    let uploadedPhoto = null;
+    try {
+      if (photoFile) uploadedPhoto = await uploadFoodPhoto(photoFile, session.user.id, postId);
+      const { data, error } = await supabase
+        .from('food_posts')
+        .insert({
+          id: postId,
+          donor_id: session.user.id,
+          food_name: foodName,
+          description,
+          category: category || 'Meals',
+          quantity_total: parsedQuantity,
+          quantity_remaining: parsedQuantity,
+          pickup_address: pickupAddress,
+          pickup_lat: pickupPin.lat,
+          pickup_lng: pickupPin.lng,
+          photo_url: uploadedPhoto?.url || DEFAULT_FOOD_IMAGE,
+          expires_at: expiresAt,
+          status: 'active'
+        })
+        .select()
+        .maybeSingle();
 
-    if (error) throw new Error(error.message);
-    if (data) return { post: data, error: null };
-    throw new Error('The food listing was not returned by the database.');
+      if (error) throw new Error(error.message);
+      if (data) {
+        window.dispatchEvent(new CustomEvent('foodrescue:post_updated', { detail: { postId } }));
+        return { post: data, error: null };
+      }
+      throw new Error('The food listing was not returned by the database.');
+    } catch (error) {
+      if (uploadedPhoto) {
+        const { data: savedPost, error: lookupError } = await supabase
+          .from('food_posts').select('id').eq('id', postId).maybeSingle();
+        if (!lookupError && !savedPost) await removeFoodPhoto(uploadedPhoto.path).catch(() => {});
+      }
+      throw error;
+    }
   }
+
+  if (photoFile) throw new FoodPhotoError('Photo uploads require a connected Supabase account. Remove the photo or try again later.');
 
   const localPost = {
     id: 'custom-' + Date.now(),
@@ -98,7 +123,9 @@ export async function createFoodPost({ foodName, description, category, quantity
     quantity_total: parsedQuantity,
     quantity_remaining: parsedQuantity,
     pickup_address: pickupAddress,
-    photo_url: photoUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+    pickup_lat: pickupPin.lat,
+    pickup_lng: pickupPin.lng,
+    photo_url: DEFAULT_FOOD_IMAGE,
     expires_at: expiresAt,
     status: 'active',
     donor: { full_name: 'Campus Member' }
@@ -106,6 +133,7 @@ export async function createFoodPost({ foodName, description, category, quantity
 
   const existing = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
   localStorage.setItem(LOCAL_STORAGE_POSTS_KEY, JSON.stringify([localPost, ...existing]));
+  window.dispatchEvent(new CustomEvent('foodrescue:post_updated', { detail: { postId: localPost.id } }));
   return { post: localPost, error: null };
 }
 
@@ -114,34 +142,43 @@ export async function getOwnFoodPosts() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) throw new Error('Please sign in to manage your food listings.');
 
-    const { data, error } = await supabase
-      .from('food_posts')
-      .select('*')
-      .eq('donor_id', session.user.id)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
+    const [{ data, error }, { data: claims, error: claimsError }] = await Promise.all([
+      supabase
+        .from('food_posts')
+        .select('*')
+        .eq('donor_id', session.user.id)
+        .order('created_at', { ascending: false }),
+      supabase.rpc('get_donor_food_claims'),
+    ]);
     if (error) throw error;
+    if (claimsError) throw claimsError;
     if (!Array.isArray(data)) throw new Error('bad response');
-    return data;
+    const claimedPostIds = new Set((Array.isArray(claims) ? claims : []).map((claim) => claim.post_id));
+    return data.map((post) => ({ ...post, has_claim_history: claimedPostIds.has(post.id) }));
   }
 
   const inventory = readStoredObject(LOCAL_STORAGE_INVENTORY_KEY);
   return readStoredArray(LOCAL_STORAGE_POSTS_KEY)
-    .filter((post) => post.status === 'active')
     .map((post) => ({
       ...post,
       quantity_remaining: typeof inventory[post.id] === 'number' ? inventory[post.id] : post.quantity_remaining,
     }));
 }
 
-export async function updateFoodPost(postId, { foodName, description, category, pickupAddress, photoUrl, expiresHours }) {
+export async function updateFoodPost(postId, { foodName, description, category, pickupAddress, pickupPin, photoUrl, previousPhotoUrl, photoFile, expiresHours }) {
+  if (!Number.isFinite(pickupPin?.lat) || pickupPin.lat < -90 || pickupPin.lat > 90
+    || !Number.isFinite(pickupPin?.lng) || pickupPin.lng < -180 || pickupPin.lng > 180) {
+    throw new Error('Select the pickup location on the map.');
+  }
   const expiresAt = new Date(Date.now() + expiresHours * 3600 * 1000).toISOString();
   const updates = {
     food_name: foodName,
     description,
     category,
     pickup_address: pickupAddress,
-    photo_url: photoUrl,
+    pickup_lat: pickupPin.lat,
+    pickup_lng: pickupPin.lng,
+    photo_url: photoUrl || DEFAULT_FOOD_IMAGE,
     expires_at: expiresAt,
   };
 
@@ -149,18 +186,35 @@ export async function updateFoodPost(postId, { foodName, description, category, 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) throw new Error('Please sign in to edit your food listing.');
 
-    const { data, error } = await supabase
-      .from('food_posts')
-      .update(updates)
-      .eq('id', postId)
-      .eq('donor_id', session.user.id)
-      .eq('status', 'active')
-      .select()
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error('This listing could not be found or is no longer active.');
-    return data;
+    let uploadedPhoto = null;
+    try {
+      if (photoFile) uploadedPhoto = await uploadFoodPhoto(photoFile, session.user.id, postId);
+      const { data, error } = await supabase
+        .from('food_posts')
+        .update({ ...updates, photo_url: uploadedPhoto?.url || updates.photo_url })
+        .eq('id', postId)
+        .eq('donor_id', session.user.id)
+        .eq('status', 'active')
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('This listing could not be found or is no longer active.');
+      if (previousPhotoUrl && data.photo_url !== previousPhotoUrl) await removeFoodPhotoIfUnreferenced(previousPhotoUrl);
+      window.dispatchEvent(new CustomEvent('foodrescue:post_updated', { detail: { postId } }));
+      return data;
+    } catch (error) {
+      if (uploadedPhoto) {
+        const { data: savedPost, error: lookupError } = await supabase
+          .from('food_posts').select('photo_url').eq('id', postId).maybeSingle();
+        if (!lookupError && savedPost?.photo_url !== uploadedPhoto.url) {
+          await removeFoodPhoto(uploadedPhoto.path).catch(() => {});
+        }
+      }
+      throw error;
+    }
   }
+
+  if (photoFile) throw new FoodPhotoError('Photo uploads require a connected Supabase account. Remove the photo or try again later.');
 
   const posts = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
   const index = posts.findIndex((post) => post.id === postId && post.status === 'active');
@@ -168,33 +222,40 @@ export async function updateFoodPost(postId, { foodName, description, category, 
 
   posts[index] = { ...posts[index], ...updates };
   localStorage.setItem(LOCAL_STORAGE_POSTS_KEY, JSON.stringify(posts));
+  window.dispatchEvent(new CustomEvent('foodrescue:post_updated', { detail: { postId } }));
   return posts[index];
 }
 
-export async function archiveFoodPost(postId) {
-  if (isSupabaseConfigured()) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Please sign in to archive your food listing.');
+async function removeFoodPhotoIfUnreferenced(photoUrl) {
+  const path = foodPhotoPathFromUrl(photoUrl);
+  if (!path) return;
+  const { count, error } = await supabase
+    .from('food_posts')
+    .select('id', { count: 'exact', head: true })
+    .eq('photo_url', photoUrl);
+  if (error || count !== 0) return;
+  await removeFoodPhoto(path).catch(() => {});
+}
 
-    const { data, error } = await supabase
-      .from('food_posts')
-      .update({ status: 'removed_by_donor' })
-      .eq('id', postId)
-      .eq('donor_id', session.user.id)
-      .eq('status', 'active')
-      .select('id')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error('This listing could not be found or is no longer active.');
-    return data.id;
+export async function cancelFoodPost(postId, reason) {
+  const cleanReason = cancellationReason(reason);
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase.rpc('cancel_food_post', {
+      p_post_id: postId,
+      p_reason: cleanReason,
+    });
+    if (error) throw claimRequestError(error);
+    window.dispatchEvent(new CustomEvent('foodrescue:post_updated', { detail: { postId } }));
+    return data;
   }
 
   const posts = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
   const index = posts.findIndex((post) => post.id === postId && post.status === 'active');
   if (index < 0) throw new Error('This listing could not be found or is no longer active.');
 
-  posts[index] = { ...posts[index], status: 'removed_by_donor' };
+  posts[index] = { ...posts[index], status: 'removed_by_donor', cancellation_reason: cleanReason };
   localStorage.setItem(LOCAL_STORAGE_POSTS_KEY, JSON.stringify(posts));
+  window.dispatchEvent(new CustomEvent('foodrescue:post_updated', { detail: { postId } }));
   return postId;
 }
 

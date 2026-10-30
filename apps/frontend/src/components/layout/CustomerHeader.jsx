@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useHistory } from 'react-router-dom';
 import { IonHeader } from '@ionic/react';
 import { 
@@ -14,16 +14,37 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 import { getMyFoodClaims } from '../../services/food';
-import { getMyNotifications, markNotificationRead } from '../../services/notifications';
+import { getMyNotifications, markAllNotificationsRead, markNotificationRead, subscribeToMyNotifications } from '../../services/notifications';
+import { applyReadSnapshot } from '../../lib/notification-state';
+import { useSharedRefresh } from '../../lib/shared-refresh';
 
 export default function CustomerHeader({ active, userProfile }) {
   const history = useHistory();
   const [activeClaims, setActiveClaims] = useState([]);
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [pickupError, setPickupError] = useState('');
-  const [notifications, setNotifications] = useState([]);
+  const [notificationState, setNotificationState] = useState({ notifications: [], unreadCount: 0 });
+  const { notifications, unreadCount } = notificationState;
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationError, setNotificationError] = useState('');
+  const [notificationSaving, setNotificationSaving] = useState(false);
+  const notificationRequest = useRef(0);
+  const notificationRevision = useRef(0);
+  const notificationAction = useRef(false);
+  useSharedRefresh(loadNotifications);
+
+  useEffect(() => {
+    notificationRevision.current += 1;
+    setNotificationState({ notifications: [], unreadCount: 0 });
+    if (!userProfile?.id) return undefined;
+    loadNotifications();
+    const unsubscribe = subscribeToMyNotifications(userProfile.id, () => loadNotifications());
+    return () => {
+      notificationRevision.current += 1;
+      notificationRequest.current += 1;
+      unsubscribe();
+    };
+  }, [userProfile?.id]);
 
   useEffect(() => {
     loadClaims();
@@ -38,12 +59,18 @@ export default function CustomerHeader({ active, userProfile }) {
     };
   }, []);
 
-  async function loadNotifications() {
+  async function loadNotifications({ clearError = true } = {}) {
+    const request = ++notificationRequest.current;
+    const revision = notificationRevision.current;
     try {
-      setNotifications(await getMyNotifications());
-      setNotificationError('');
+      const state = await getMyNotifications();
+      if (request !== notificationRequest.current || revision !== notificationRevision.current) return;
+      setNotificationState(state);
+      if (clearError) setNotificationError('');
     } catch (error) {
-      setNotificationError(error.message || 'Could not load notifications.');
+      if (request === notificationRequest.current && revision === notificationRevision.current) {
+        setNotificationError(error.message || 'Could not load notifications.');
+      }
     }
   }
 
@@ -54,12 +81,45 @@ export default function CustomerHeader({ active, userProfile }) {
   }
 
   async function handleNotificationRead(notification) {
-    if (notification.is_read) return;
+    if (notification.is_read || notificationAction.current) return;
+    notificationAction.current = true;
+    setNotificationSaving(true);
+    notificationRevision.current += 1;
+    let actionError;
     try {
-      await markNotificationRead(notification.id);
-      setNotifications((items) => items.map((item) => item.id === notification.id ? { ...item, is_read: true } : item));
+      const changed = await markNotificationRead(notification.id);
+      setNotificationState((state) => ({
+        notifications: state.notifications.map((item) => item.id === notification.id ? { ...item, is_read: true } : item),
+        unreadCount: changed ? Math.max(0, state.unreadCount - 1) : state.unreadCount,
+      }));
     } catch (error) {
-      setNotificationError(error.message || 'Could not update this notification.');
+      actionError = error;
+    } finally {
+      notificationRevision.current += 1;
+      await loadNotifications({ clearError: !actionError });
+      notificationAction.current = false;
+      setNotificationSaving(false);
+      if (actionError) setNotificationError(actionError.message || 'Could not update this notification.');
+    }
+  }
+
+  async function handleMarkAllNotificationsRead() {
+    if (notificationAction.current || unreadCount === 0) return;
+    notificationAction.current = true;
+    setNotificationSaving(true);
+    notificationRevision.current += 1;
+    let actionError;
+    try {
+      const readIds = await markAllNotificationsRead();
+      setNotificationState((state) => applyReadSnapshot(state, readIds));
+    } catch (error) {
+      actionError = error;
+    } finally {
+      notificationRevision.current += 1;
+      await loadNotifications({ clearError: !actionError });
+      notificationAction.current = false;
+      setNotificationSaving(false);
+      if (actionError) setNotificationError(actionError.message || 'Could not update notifications.');
     }
   }
 
@@ -77,7 +137,7 @@ export default function CustomerHeader({ active, userProfile }) {
 
   return (
     <>
-      <IonHeader className="w-full border-b border-[#2a382e]/10 bg-white/95 backdrop-blur-md sticky top-0 z-40">
+      <IonHeader className="member-header w-full border-b border-[#2a382e]/10 bg-white/95 backdrop-blur-md sticky top-0">
         
 
 
@@ -114,14 +174,20 @@ export default function CustomerHeader({ active, userProfile }) {
             )}
 
             <div className="member-notification-wrap">
-              <button type="button" className="member-notification-button" aria-label="Notifications" aria-expanded={notificationsOpen} aria-controls="member-notifications" onClick={openNotifications}>
+              <button type="button" className="member-notification-button" aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'} aria-expanded={notificationsOpen} aria-controls="member-notifications" onClick={openNotifications}>
                 <Bell size={19} />
-                {notifications.some((item) => !item.is_read) && <span className="member-notification-count">{notifications.filter((item) => !item.is_read).length}</span>}
+                {unreadCount > 0 && <span className="member-notification-count" aria-live="polite">{unreadCount}</span>}
               </button>
               {notificationsOpen && <section id="member-notifications" className="member-notification-panel" aria-label="Your notifications">
-                <div className="member-notification-heading"><strong>Notifications</strong><button type="button" onClick={loadNotifications}>Refresh</button></div>
+                <div className="member-notification-heading">
+                  <strong>Notifications</strong>
+                  <div className="member-notification-actions">
+                    <button type="button" disabled={notificationSaving || unreadCount === 0} onClick={handleMarkAllNotificationsRead}>Read all</button>
+                    <button type="button" onClick={() => loadNotifications()}>Refresh</button>
+                  </div>
+                </div>
                 {notificationError && <p role="alert" className="member-notification-error">{notificationError}</p>}
-                {notifications.length ? notifications.map((item) => <button type="button" key={item.id} className={`member-notification-item ${item.is_read ? '' : 'unread'}`} onClick={() => handleNotificationRead(item)}>
+                {notifications.length ? notifications.map((item) => <button type="button" key={item.id} disabled={notificationSaving} className={`member-notification-item ${item.is_read ? '' : 'unread'}`} onClick={() => handleNotificationRead(item)}>
                   <span>{item.message}</span><small>{new Date(item.created_at).toLocaleString()}</small>
                 </button>) : <p className="member-notification-empty">No notifications yet.</p>}
               </section>}

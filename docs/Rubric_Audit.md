@@ -1,5 +1,23 @@
 # FoodRescue Rubric Audit
 
+Latest evidence: [29 October implementation status](Implementation_Status_2026-10-29.md) and [defense test record](Defense_Test_Record.md). The older gap list below is historical; new source features still require deployment/device acceptance.
+
+## Confirmed-design gap notice
+
+The checklist below is historical source evidence from the earlier prototype audit, not certification against the newly confirmed [Design Agreement](Design_Agreement_FoodRescue.md). Earlier PASS labels do not establish current security, deployment, device behavior, or completion of the revised requirements. No builds, dependency audits, or live tests were rerun during documentation reconciliation.
+
+The earlier source inspection found these material gaps:
+
+- food.js creates local ready_for_pickup passes even after the Supabase claim RPC, and completeClaim updates only localStorage. This does not implement donor acceptance, canonical shared history, or donor QR/manual verification.
+- The inspected claim RPC checks identity, positive quantity, active status, and remaining inventory, but lacks an explicit deadline check, self-claim restriction, suspension check, and agreed per-person eligibility enforcement.
+- Existing claim/post schema and shared types lack expired claims and donor-cancelled posts; cancellation requests, verification authorizations, departure notices, and journey location storage still need implementation.
+- MapPage remains a CSS prototype; posting uses hardcoded coordinates. Local photo preview does not establish actual Storage upload.
+- Live moderation, report visibility/resolution explanations, audited transactional changes, suspension behavior, in-app shared notifications, and location cleanup require end-to-end verification against the new rules.
+- Configured feed reads can fall back to mock posts on empty results or failure. This must not mask a legitimate empty live feed or a service error in the defense.
+- APK installation and Android camera/location/upload behavior require real-device evidence. SMS work is deferred and must not be counted as live delivery.
+
+Use the revised phases for implementation, and update checklist evidence only after applicable checks pass.
+
 This audit is based on the three checklist pages supplied for the project. `PASS` means there is code evidence in the repository, `PARTIAL` means the implementation is present but does not exactly match the checklist wording, and `MANUAL` means it cannot be proven by a source scan.
 
 ## Design and Setup
@@ -87,3 +105,6 @@ This audit is based on the three checklist pages supplied for the project. `PASS
 ## Important honesty note
 
 Source code can prove implementation, but it cannot prove a real-device test, screenshots matching an approved mockup, a live Supabase deployment, or that every teammate can explain the code. Those final checklist boxes require a short manual test and presentation record.
+# Implementation update — 29 October 2026
+
+The historical observations below are superseded where noted by `Implementation_Status_2026-10-29.md`. Source now includes real Storage uploads and donor pins, explained donor cancellation, expiration cleanup, departure/journey sharing, corrected rescue metrics and Android packaging. The new migrations are unapplied and hosting is not published because deployment files only were requested. Do not treat source implementation, isolated tests or a debug APK build as a real-device acceptance PASS; outstanding checks are in `Defense_Test_Record.md`.

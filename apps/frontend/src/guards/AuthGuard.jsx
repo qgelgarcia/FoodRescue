@@ -7,10 +7,13 @@ export default function AuthGuard({ component: Component, ...rest }) {
   const [profile, setProfile] = useState(null);
 
   useEffect(() => {
+    const updated = () => getCurrentProfile().then(setProfile);
+    window.addEventListener('foodrescue:profile_updated', updated);
     getCurrentProfile().then((p) => {
       setProfile(p);
       setLoading(false);
     });
+    return () => window.removeEventListener('foodrescue:profile_updated', updated);
   }, []);
 
   if (loading) {

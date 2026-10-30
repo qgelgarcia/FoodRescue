@@ -3,12 +3,14 @@ import { useHistory } from 'react-router-dom';
 import { Home, Compass, Plus, Bookmark, User } from 'lucide-react';
 import { Dock, DockItem } from '../ui/calamansi/dock';
 import { getMyFoodClaims } from '../../services/food';
+import { useSharedRefresh } from '../../lib/shared-refresh';
 
 const TAB_ORDER = { home: 0, map: 1, post: 2, history: 3, profile: 4 };
 
 export default function FloatingBottomDock({ active }) {
   const history = useHistory();
   const [pendingCount, setPendingCount] = useState(0);
+  useSharedRefresh(() => getMyFoodClaims().then(claims => setPendingCount(claims.filter(claim => !claim.is_sample && ['pending', 'accepted'].includes(claim.status) && new Date(claim.expires_at).getTime() > Date.now()).length)).catch(() => {}));
 
   useEffect(() => {
     let mounted = true;
@@ -27,7 +29,7 @@ export default function FloatingBottomDock({ active }) {
     const currentIdx = TAB_ORDER[active];
     const nextIdx = TAB_ORDER[tab];
     // If we're already on the tab, don't do anything
-    if (currentIdx === nextIdx) return;
+    if (history.location.pathname === path) return;
     
     // Direction: 1 for right, -1 for left
     const direction = nextIdx > currentIdx ? 1 : -1;
@@ -35,7 +37,7 @@ export default function FloatingBottomDock({ active }) {
   };
 
   return (
-    <div className="fixed bottom-6 left-0 right-0 z-50 flex justify-center pointer-events-none px-4">
+    <div style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }} className="fixed left-0 right-0 z-50 flex justify-center pointer-events-none px-4">
       <div className="pointer-events-auto filter drop-shadow-2xl">
         <Dock reach={110} size={42} magnify={54}>
           <DockItem

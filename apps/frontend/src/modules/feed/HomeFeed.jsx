@@ -12,12 +12,13 @@ import {
   CheckCircle2,
   X
 } from 'lucide-react';
-import CustomerHeader from '../../components/layout/CustomerHeader';
 import FoodCard from '../../components/food/FoodCard';
 import PageShell from '../../components/layout/PageShell';
 
 import { getFoodPosts } from '../../services/food';
 import { motion, AnimatePresence } from 'motion/react';
+
+import { useSharedRefresh } from '../../lib/shared-refresh';
 
 export default function HomeFeed({ userProfile }) {
   const [posts, setPosts] = useState([]);
@@ -32,8 +33,10 @@ export default function HomeFeed({ userProfile }) {
     fetchPosts();
   }, []);
 
-  async function fetchPosts() {
-    setLoading(true);
+  useSharedRefresh(() => fetchPosts(true));
+
+  async function fetchPosts(quiet = false) {
+    if (!quiet) setLoading(true);
     setError('');
     try {
       const data = await getFoodPosts();
@@ -76,7 +79,6 @@ export default function HomeFeed({ userProfile }) {
   return (
     <PageShell>
       <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-24 relative">
-      <CustomerHeader active="home" userProfile={userProfile} />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
 
