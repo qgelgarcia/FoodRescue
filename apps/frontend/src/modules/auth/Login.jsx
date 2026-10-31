@@ -464,7 +464,7 @@ export default function Login() {
         </form>
 
         {/* Demo Account Shortcuts (for quick evaluation & testing) */}
-        {mode === 'signin' && (
+        {import.meta.env.DEV && mode === 'signin' && (
           <div className="demo-shortcuts">
             <div className="demo-shortcuts-header">
               <small>⚡ Quick Fill Demo Accounts:</small>

@@ -15,6 +15,7 @@ const allowed = new Set([
   '20261030040000_chat_conversations.sql',
   '20261031010000_email_notifications.sql',
   '20261031020000_vercel_email_scheduler.sql',
+  '20261031030000_protect_scheduler_credentials.sql',
 ]);
 const env = dotenv.parse(await readFile(path.join(root, 'apps/backend/.env')));
 const databaseUrl = new URL((await readFile(path.join(root, 'supabase/.temp/pooler-url'), 'utf8')).trim());

@@ -41,3 +41,18 @@ test('Vercel API handler serves health, requires scheduler authentication, and d
  if(path.dirname(dir)!==root)throw new Error('Unexpected cleanup path');await rm(dir,{recursive:true,force:true});
  }
 });
+
+
+test('credential hardening revokes client grants when tables are owned by the migration role',async()=>{
+ const db=new PGlite();try{
+ await db.exec(`create role anon;create role authenticated;create schema vault;create schema net;
+ create table vault.secrets(id uuid);create table vault.decrypted_secrets(secret text);
+ create table net.http_request_queue(headers jsonb);create table net._http_response(body text);
+ grant select on all tables in schema net,vault to public;`);
+ assert.equal((await db.query("select has_table_privilege('authenticated','net.http_request_queue','select') allowed")).rows[0].allowed,true);
+ await db.exec(await readFile('supabase/migrations/20261031030000_protect_scheduler_credentials.sql','utf8'));
+ for(const role of ['anon','authenticated'])for(const table of ['net.http_request_queue','net._http_response','vault.secrets','vault.decrypted_secrets']){
+  assert.equal((await db.query("select has_table_privilege($1,$2,'select') allowed",[role,table])).rows[0].allowed,false);
+ }
+ }finally{await db.close();}
+});

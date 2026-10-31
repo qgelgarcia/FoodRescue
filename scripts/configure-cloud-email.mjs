@@ -15,7 +15,16 @@ let transaction=false;
 try{
  await client.connect();
  const {rows}=await client.query("select has_table_privilege('authenticated','vault.decrypted_secrets','select') or has_table_privilege('anon','vault.decrypted_secrets','select') as vault_exposed, has_table_privilege('authenticated','net.http_request_queue','select') or has_table_privilege('anon','net.http_request_queue','select') as queue_exposed");
- if(rows[0].vault_exposed||rows[0].queue_exposed)throw new Error('Refusing to store the scheduler secret: client access is broader than expected.');
+ if(rows[0].vault_exposed)throw new Error('Refusing to store the scheduler secret: Vault is accessible to client roles.');
+ // Hosted pg_net tables may have platform-owned SQL grants. Browser roles cannot log in
+ // to Postgres directly; require proof that net is absent from the exposed Data API.
+ if(rows[0].queue_exposed){
+  const roles=await client.query("select count(*)::integer count from pg_roles where rolname in ('anon','authenticated') and rolcanlogin");
+  if(roles.rows[0].count!==0)throw new Error('Refusing scheduler setup: client roles can log in to Postgres.');
+  const response=await fetch(`${env.SUPABASE_URL}/rest/v1/http_request_queue?select=id&limit=0`,{headers:{apikey:env.SUPABASE_ANON_KEY,Authorization:`Bearer ${env.SUPABASE_ANON_KEY}`,'Accept-Profile':'net'},signal:AbortSignal.timeout(10000)});
+  const denied=await response.json().catch(()=>({}));
+  if(response.status!==406||denied.code!=='PGRST106')throw new Error('Refusing scheduler setup: net schema is exposed through the Data API.');
+ }
  await client.query('begin');transaction=true;
  for(const [name,value]of [['foodrescue_email_dispatch_url',`${url.origin}/api/internal/email-dispatch`],['foodrescue_email_dispatch_secret',env.EMAIL_DISPATCH_SECRET]]){
   const existing=await client.query('select id from vault.secrets where name=$1',[name]);
