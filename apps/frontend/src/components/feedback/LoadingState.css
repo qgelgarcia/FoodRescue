@@ -1,0 +1,13 @@
+.system-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; min-height: 240px; width: 100%; padding: 32px 20px; color: var(--theme-ink, #182019); text-align: center; font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+.system-loading.is-fullscreen { min-height: 100dvh; background: var(--theme-page, #f5f8f1); }
+.system-loading-symbol { position: relative; display: grid; place-items: center; width: 64px; height: 64px; color: var(--theme-accent, #287d35); background: var(--theme-raised, #e7f0e3); border-radius: 20px; }
+.system-loading-orbit { position: absolute; inset: -5px; border: 2px solid transparent; border-top-color: var(--theme-accent, #287d35); border-radius: 24px; animation: system-loading-turn 1.8s linear infinite; }
+.system-loading h2 { margin: 0 0 8px; font-size: 18px; font-weight: 750; color: var(--theme-ink, #182019); }
+.system-loading p { max-width: 44ch; margin: 0 auto; color: var(--theme-muted, #526050); font-size: 14px; line-height: 1.65; }
+.system-loading p.system-loading-detail { margin-top: 12px; font-size: 13px; }
+.system-loading button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 20px; border: 0; border-radius: 12px; background: var(--theme-accent, #287d35); color: #fff; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.system-loading button:disabled { opacity: .65; cursor: wait; }
+.system-loading button:focus-visible { outline: 3px solid var(--theme-accent, #287d35); outline-offset: 4px; }
+:root[data-theme="dark"] .system-loading button { color: #102016; }
+@keyframes system-loading-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .system-loading-orbit { animation: none; border-color: var(--theme-accent, #287d35); opacity: .5; } }

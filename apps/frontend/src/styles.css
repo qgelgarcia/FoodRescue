@@ -2066,9 +2066,9 @@ ion-header.member-header {
   height: 38px;
   align-items: center;
   justify-content: center;
-  border: 1px solid #dfe5db;
-  border-radius: 999px;
-  background: #fff;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
   color: #245d2e;
   cursor: pointer;
 }
@@ -2550,7 +2550,8 @@ ion-content.foodrescue-content { --color: var(--theme-ink); color: var(--theme-i
 :root[data-theme="dark"] :is(.auth-container label, .password-field label, .phone-field label, .member-report-form label) { color: var(--theme-ink); }
 :root[data-theme="dark"] :is(.btn-google, .demo-shortcuts, .auth-tabs, .auth-tab-btn, .demo-shortcuts .chips button) { background: var(--theme-raised); color: var(--theme-ink); border-color: var(--theme-line); }
 :root[data-theme="dark"] .auth-tab-btn.active { background: #356b40; color: white; }
-:root[data-theme="dark"] :is(.member-notification-panel, .member-notification-heading, .member-notification-button) { background: var(--theme-surface); color: var(--theme-ink); border-color: var(--theme-line); }
+:root[data-theme="dark"] :is(.member-notification-panel, .member-notification-heading) { background: var(--theme-surface); color: var(--theme-ink); border-color: var(--theme-line); }
+:root[data-theme="dark"] .member-notification-button { background: transparent; color: var(--theme-ink); }
 :root[data-theme="dark"] .member-notification-item.unread { background: #1d3624; }
 :root[data-theme="dark"] .member-notification-item small { color: var(--theme-muted); }
 :root[data-theme="dark"] .member-notification-see-all { border-color: var(--theme-line); color: var(--theme-accent); }
@@ -2600,6 +2601,8 @@ ion-content.foodrescue-content { --color: var(--theme-ink); color: var(--theme-i
 .theme-reveal::view-transition-new(root) { will-change: clip-path; }
 
 /* Respect Android display cutouts and gesture navigation. */
+.member-chat-shortcut { display: none; }
+@media (min-width: 640px) { .member-chat-shortcut { display: inline-flex; min-width: 44px; min-height: 44px; } }
 body {
   padding-top: env(safe-area-inset-top, 0px);
   padding-left: env(safe-area-inset-left, 0px);

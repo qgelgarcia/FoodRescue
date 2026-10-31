@@ -5,7 +5,7 @@ import { Dock, DockItem } from '../ui/calamansi/dock';
 import { getMyFoodClaims } from '../../services/food';
 import { useSharedRefresh } from '../../lib/shared-refresh';
 
-const TAB_ORDER = { home: 0, map: 1, post: 2, history: 3, profile: 4 };
+const TAB_ORDER = { home: 0, map: 1, post: 2, history: 3, profile: 4, chat: 5 };
 
 export default function FloatingBottomDock({ active }) {
   const history = useHistory();

@@ -1,3 +1,4 @@
+import LoadingState from '../../components/feedback/LoadingState';
 import React, { useEffect, useRef, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import { Bell, CheckCheck, RefreshCw } from 'lucide-react';
@@ -247,10 +248,10 @@ export default function NotificationsPage({ userProfile }) {
             ))}
           </div>
 
-          {error && <div className="notification-center-error" role="alert">{error}</div>}
+          {error && <LoadingState error={error} onRetry={() => loadPage({ reset: true })} />}
 
           <section id="notification-list" role="tabpanel" aria-labelledby={`notifications-${filter}-tab`} aria-busy={loading || loadingMore}>
-            {loading && !notifications.length ? <p className="notification-center-state" role="status">Loading notifications…</p>
+            {loading && !notifications.length ? <LoadingState label="Loading notifications" onRetry={() => loadPage({ reset: true })} />
               : notifications.length ? <div className="notification-center-list">
                 {notifications.map((item) => (
                   <button

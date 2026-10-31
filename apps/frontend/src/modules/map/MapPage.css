@@ -1,0 +1,23 @@
+main.pickup-map-page { max-width: 1440px; }
+.pickup-map-workspace { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(280px, 1fr); align-items: start; gap: 24px; }
+.pickup-map-region, .pickup-map-sidebar { min-width: 0; }
+.pickup-map-workspace .pickup-map-canvas { height: clamp(420px, 64dvh, 720px); }
+.pickup-map-sidebar { display: flex; flex-direction: column; max-height: clamp(420px, 64dvh, 720px); padding: 20px; border-radius: 20px; background: var(--theme-surface); color: var(--theme-ink); }
+.pickup-points-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.pickup-points-heading h2 { margin: 0; font-size: 17px; font-weight: 750; }
+.pickup-points-heading > span { padding: 4px 9px; border-radius: 8px; background: var(--theme-raised); color: var(--theme-accent); font-size: 13px; font-weight: 700; }
+.pickup-map-sidebar .pickup-location-list { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; margin-top: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--theme-line) transparent; }
+.pickup-map-sidebar .pickup-location-list > button { min-width: 0; flex-shrink: 0; padding: 16px; background: var(--theme-raised); color: var(--theme-ink); border-color: transparent; border-radius: 12px; }
+.pickup-map-sidebar .pickup-location-list > button > svg { flex-shrink: 0; color: var(--theme-accent); }
+.pickup-map-sidebar .pickup-location-list > button > span { min-width: 0; overflow-wrap: anywhere; }
+.pickup-map-sidebar .pickup-location-list > button.is-selected { border-color: var(--theme-accent); background: var(--theme-raised); }
+.pickup-map-sidebar .pickup-location-list > button:focus-visible { outline: 2px solid var(--theme-accent); outline-offset: -3px; }
+.pickup-map-sidebar .pickup-map-notice { margin: 0 0 12px; padding: 0; border: 0; background: transparent; line-height: 1.6; }
+.pickup-map-workspace .pickup-map-loading { max-width: calc(100% - 32px); width: 360px; white-space: normal; padding: 0; }
+.pickup-map-workspace .system-loading { min-height: 180px; padding: 24px 16px; }
+@media (max-width: 900px) {
+  .pickup-map-workspace { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .pickup-map-workspace .pickup-map-canvas { height: 48dvh; min-height: 320px; }
+  .pickup-map-sidebar { max-height: none; }
+  .pickup-map-sidebar .pickup-location-list { overflow-y: visible; }
+}

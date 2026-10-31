@@ -1,3 +1,4 @@
+import LoadingState from '../../components/feedback/LoadingState';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useHistory, useLocation } from 'react-router-dom';
 import PageShell from '../../components/layout/PageShell';
@@ -107,8 +108,8 @@ export default function ReportsPage({ userProfile }) {
         <section className="member-reports-list">
           <div className="page-header"><h2>My Reports</h2><p>Report contents remain available to you after resolution.</p></div>
           {!loading && !error && notificationReportId && !reports.some(report => report.id === notificationReportId) && <p role="status" className="admin-feedback">This report is unavailable or does not belong to your account.</p>}
-          {loading ? <div className="admin-empty-state" role="status">Loading your reports…</div>
-            : reports.length ? <div className="admin-table-wrapper"><table className="admin-table"><thead><tr><th>Target</th><th>Your explanation</th><th>Status</th><th>Submitted</th></tr></thead><tbody>
+          {loading ? <LoadingState label="Loading your reports" onRetry={load} />
+            : error && !reports.length ? <LoadingState error={error} onRetry={load} /> : reports.length ? <div className="admin-table-wrapper"><table className="admin-table"><thead><tr><th>Target</th><th>Your explanation</th><th>Status</th><th>Submitted</th></tr></thead><tbody>
               {reports.map((report) => <tr key={report.id} ref={report.id === notificationReportId ? focusedReport : undefined} tabIndex={report.id === notificationReportId ? -1 : undefined} className={report.id === notificationReportId ? 'notification-focused-report' : undefined}>
                 <td>{report.target_type}: {report.target_label || 'Unavailable'}</td><td className="admin-long-text">{report.reason}</td>
                 <td><span className="report-status">{report.status}</span>{report.resolution_explanation && <small className="admin-subtext">{report.resolution_explanation}</small>}</td>

@@ -1,3 +1,4 @@
+import LoadingState from '../../components/feedback/LoadingState';
 import FoodPreviewSlider from '../../components/food/FoodPreviewSlider';
 import { friendlyError } from '../../services/request';
 import React, { useState, useEffect } from 'react';
@@ -180,31 +181,9 @@ export default function HomeFeed({ userProfile }) {
 
         {/* Food Postings Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="animate-pulse bg-white rounded-[2rem] p-4 flex flex-col h-[340px] shadow-sm border border-[#2a382e]/10">
-                <div className="w-full h-44 bg-neutral-200 rounded-[1.5rem] mb-4"></div>
-                <div className="h-5 bg-neutral-200 rounded-md w-3/4 mb-2"></div>
-                <div className="h-4 bg-neutral-200 rounded-md w-1/2 mb-auto"></div>
-                <div className="flex gap-2 mt-4 pt-4 border-t border-[#2a382e]/5">
-                  <div className="h-10 bg-neutral-200 rounded-xl w-24"></div>
-                  <div className="h-10 bg-neutral-200 rounded-xl flex-1"></div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <LoadingState label="Loading available food" onRetry={() => fetchPosts()} />
         ) : error ? (
-          <div className="py-12 text-center bg-white rounded-3xl border border-rose-200 p-8" role="alert">
-            <h3 className="font-bold text-base text-rose-800">Unable to load listings</h3>
-            <p className="text-xs text-rose-700 mt-1">{error}</p>
-            <button
-              type="button"
-              onClick={fetchPosts}
-              className="mt-4 min-h-11 px-5 py-2 bg-[#2c8a38] text-white rounded-2xl text-xs font-bold shadow-sm hover:bg-[#23702d]"
-            >
-              Try Again
-            </button>
-          </div>
+          <LoadingState error={error} onRetry={() => fetchPosts()} />
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center bg-white rounded-3xl border border-dashed border-[#2a382e]/20 p-8">
             <UtensilsCrossed size={32} className="mx-auto text-[#687066] mb-2" />

@@ -18,6 +18,7 @@ import HistoryPage from './modules/history/HistoryPage';
 import ProfilePage from './modules/profile/ProfilePage';
 import ReportsPage from './modules/reports/ReportsPage';
 import NotificationsPage from './modules/notifications/NotificationsPage';
+import ChatPage from './modules/chat/ChatPage';
 
 import { AnimatePresence, motion } from 'motion/react';
 import { useHistory, useLocation } from 'react-router-dom';
@@ -45,7 +46,8 @@ function UserModuleTabs({ userProfile }) {
     '/app/history': 'history',
     '/app/profile': 'profile',
     '/app/reports': 'profile',
-    '/app/notifications': 'profile'
+    '/app/notifications': 'profile',
+    '/app/chat': 'chat'
   };
   const activeTab = activeMap[location.pathname] || 'home';
   const direction = location.state?.direction || 1;
@@ -72,7 +74,7 @@ function UserModuleTabs({ userProfile }) {
   };
 
   return (
-    <div className="relative h-screen w-full overflow-hidden flex flex-col">
+    <div className="relative h-screen w-full overflow-hidden flex flex-col" style={activeTab === 'chat' ? { height: '100dvh' } : undefined}>
       <CustomerHeader active={activeTab} userProfile={userProfile} />
       <div className="relative flex-1 min-h-0">
       <AnimatePresence initial={false} custom={direction}>
@@ -108,6 +110,9 @@ function UserModuleTabs({ userProfile }) {
             </Route>
             <Route exact path="/app/notifications">
               <NotificationsPage userProfile={userProfile} />
+            </Route>
+            <Route exact path="/app/chat">
+              <ChatPage userProfile={userProfile} />
             </Route>
             <Route exact path="/app"><Redirect to="/app/home-feed" /></Route>
           </Switch>

@@ -10,9 +10,10 @@ import {
   CheckCircle2,
   ArrowRight,
   Bell,
+  MessageCircle,
   X
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 
 import { getMyFoodClaims } from '../../services/food';
 import { getMyNotifications, markAllNotificationsRead, markNotificationRead, NOTIFICATIONS_UPDATED_EVENT, subscribeToMyNotifications } from '../../services/notifications';
@@ -27,11 +28,14 @@ export default function CustomerHeader({ active, userProfile }) {
   const [notificationState, setNotificationState] = useState({ notifications: [], unreadCount: 0 });
   const { notifications, unreadCount } = notificationState;
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationPanelPresent, setNotificationPanelPresent] = useState(false);
   const [notificationError, setNotificationError] = useState('');
   const [notificationSaving, setNotificationSaving] = useState(false);
   const notificationRequest = useRef(0);
   const notificationRefreshTimer = useRef(null);
   const notificationAction = useRef(false);
+  const notificationsOpenRef = useRef(false);
+  const prefersReducedMotion = useReducedMotion();
   useSharedRefresh(loadNotifications);
 
   useEffect(() => {
@@ -82,8 +86,17 @@ export default function CustomerHeader({ active, userProfile }) {
 
   async function openNotifications() {
     const open = !notificationsOpen;
+    notificationsOpenRef.current = open;
     setNotificationsOpen(open);
-    if (open) await loadNotifications();
+    if (open) {
+      setNotificationPanelPresent(true);
+      await loadNotifications();
+    }
+  }
+
+  function closeNotifications() {
+    notificationsOpenRef.current = false;
+    setNotificationsOpen(false);
   }
 
   async function handleNotificationOpen(notification) {
@@ -103,7 +116,7 @@ export default function CustomerHeader({ active, userProfile }) {
     }
     const destination = notificationDestination(notification);
     if (!actionError && destination) {
-      setNotificationsOpen(false);
+      closeNotifications();
       history.push(destination.pathname, destination.state);
     }
   }
@@ -162,6 +175,7 @@ export default function CustomerHeader({ active, userProfile }) {
           </button>
 
           <div className="flex items-center gap-3 sm:gap-4">
+            <button type="button" className="member-notification-button member-chat-shortcut" aria-label="Open FoodRescue assistant" title="FoodRescue Assistant" aria-current={active === 'chat' ? 'page' : undefined} onClick={() => history.push('/app/chat')}><MessageCircle size={19} /></button>
             {/* Active Pickup Capsule */}
             {latestClaim && (
               <button 
@@ -180,7 +194,20 @@ export default function CustomerHeader({ active, userProfile }) {
                 <Bell size={19} />
                 {unreadCount > 0 && <span className="member-notification-count" aria-live="polite">{unreadCount}</span>}
               </button>
-              {notificationsOpen && <section id="member-notifications" className="member-notification-panel" aria-label="Your notifications">
+              {notificationPanelPresent && <motion.section
+                id="member-notifications"
+                className="member-notification-panel"
+                aria-label="Your notifications"
+                aria-hidden={!notificationsOpen}
+                inert={notificationsOpen ? undefined : ''}
+                style={{ pointerEvents: notificationsOpen ? 'auto' : 'none' }}
+                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -8 }}
+                animate={{ opacity: notificationsOpen ? 1 : 0, y: notificationsOpen || prefersReducedMotion ? 0 : -8 }}
+                transition={{ duration: prefersReducedMotion ? 0.01 : 0.18, ease: 'easeOut' }}
+                onAnimationComplete={() => {
+                  if (!notificationsOpenRef.current) setNotificationPanelPresent(false);
+                }}
+              >
                 <div className="member-notification-heading">
                   <strong>Notifications</strong>
                   <div className="member-notification-actions">
@@ -192,8 +219,8 @@ export default function CustomerHeader({ active, userProfile }) {
                 {notifications.length ? notifications.map((item) => <button type="button" key={item.id} disabled={notificationSaving} className={`member-notification-item ${item.is_read ? '' : 'unread'}`} onClick={() => handleNotificationOpen(item)}>
                   <span>{item.message}</span><small>{new Date(item.created_at).toLocaleString()}</small>
                 </button>) : <p className="member-notification-empty">No notifications yet.</p>}
-                <button type="button" className="member-notification-see-all" onClick={() => { setNotificationsOpen(false); history.push('/app/notifications'); }}>See all notifications</button>
-              </section>}
+                <button type="button" className="member-notification-see-all" onClick={() => { closeNotifications(); history.push('/app/notifications'); }}>See all notifications</button>
+              </motion.section>}
             </div>
 
             {/* Profile Pill */}

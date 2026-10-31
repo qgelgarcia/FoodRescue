@@ -44,6 +44,8 @@ const topics = [
       <h4>Optional journey location</h4>
       <p>Location sharing requires your consent. Only the donor for that claim can read the latest shared coordinates. The app stores a current point rather than a route history. Foreground updates pause when you leave the sharing view or hide the app.</p>
       <p>Stopping sharing deletes that point. Pickup, effective cancellation, post removal and expiration also end sharing. Deadline access stops immediately; scheduled cleanup removes expired location records.</p>
+      <h4>AI conversations</h4>
+      <p>Assistant conversations are saved to your account. When you send a message, your question and recent conversation context are sent to OpenRouter and a model provider to generate a reply. Avoid sharing private health details, passwords or pickup codes. You can delete a conversation from the assistant page. Nutrition answers are general information and may include estimates; the assistant does not provide medical diet prescriptions.</p>
       <h4>History and concerns</h4>
       <p>Claims, reports and moderation records remain available as history; cancelling an arrangement does not erase those records. Reporters can view their own reports, and authorized admins review them. Map views request tiles from OpenStreetMap’s tile service.</p>
       <p>For questions about your account or stored information, email <a href="mailto:FoodRescue@gmail.com">FoodRescue@gmail.com</a>. Never include your password or pickup code in a report.</p>

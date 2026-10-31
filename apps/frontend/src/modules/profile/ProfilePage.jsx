@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import PageShell from '../../components/layout/PageShell';
 
-import { NumberTicker } from '../../components/ui/calamansi/number-ticker';
 import SignOutButton from '../../components/auth/SignOutButton';
 import ProfileAvatar from '../../components/profile/ProfileAvatar';
 import { getMyFoodClaims } from '../../services/food';
@@ -207,12 +206,12 @@ export default function ProfilePage({ userProfile }) {
 
   return (
     <PageShell>
-      <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
+      <div className="member-profile-page h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
         
         {/* Profile Card Header */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/10 shadow-sm mb-8 flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
+        <div className="profile-summary bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/10 shadow-sm mb-8">
           <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
             <div className="profile-avatar-editor">
             <ProfileAvatar
@@ -242,12 +241,12 @@ export default function ProfilePage({ userProfile }) {
             </details>
             </div>
             <div>
-              <div className="flex items-center justify-center sm:justify-start gap-2">
+              <div className="profile-identity-heading">
                 <h1 className="font-['Space_Grotesk'] text-2xl sm:text-3xl font-extrabold text-[#182019] tracking-tight drop-shadow-sm">
                   {userProfile?.full_name || 'Campus Member'}
                 </h1>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-100 to-emerald-50 text-[#0c6b20] border border-emerald-200/60 shadow-sm flex items-center gap-1">
-                  <CheckCircle2 size={11} className="text-emerald-500" /> Campus Member
+                <span className="profile-member-badge">
+                  <CheckCircle2 size={14} aria-hidden="true" /> Campus Member
                 </span>
               </div>
               {userProfile?.email && <p className="text-sm font-medium text-[#687066] mt-1">{userProfile.email}</p>}
@@ -260,10 +259,11 @@ export default function ProfilePage({ userProfile }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-          <button type="button" onClick={() => history.push('/app/reports')} className="member-report-link">My Reports</button>
+          <div className="profile-header-actions">
+          <button type="button" onClick={() => history.push('/app/chat')} className="profile-header-action"><MessageCircle size={16} aria-hidden="true" />Assistant</button>
+          <button type="button" onClick={() => history.push('/app/reports')} className="profile-header-action"><FileText size={16} aria-hidden="true" />My Reports</button>
           <SignOutButton
-            className="text-rose-600 hover:text-rose-800 text-sm font-bold transition-colors flex items-center gap-1.5 px-2 py-1"
+            className="profile-header-action profile-signout-action"
           >
             <LogOut size={14} />
             <span>Sign Out</span>
@@ -289,56 +289,21 @@ export default function ProfilePage({ userProfile }) {
           {profileMessage && <p role="status" className="profile-form-feedback">{profileMessage}</p>}
         </form>
 
-        {/* Live Odometer Impact Telemetry Section */}
-        <section className="mb-8">
-          <div className="mb-4">
-            <h2 className="font-['Space_Grotesk'] text-xl font-bold text-[#182019]">
-              Your Ecological Impact
-            </h2>
-            <p className="text-xs text-[#4c5b4f]">
-              Realtime telemetry calculated from your campus meal rescues and food donations.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            
-            {/* Stat 1: Total Portions Rescued */}
-            <div className="bg-white rounded-3xl p-6 border border-[#2a382e]/10 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="size-9 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#0c6b20] flex items-center justify-center mb-3">
-                  <UtensilsCrossed size={18} />
-                </div>
-                <p className="text-xs font-bold text-[#687066] uppercase tracking-wider">Portions Rescued</p>
-                <div className="mt-2">
-                  <NumberTicker
-                    value={rescuedMeals}
-                    variant="calamansi"
-                    className="text-2xl font-['Space_Grotesk'] font-extrabold"
-                  />
-                </div>
-              </div>
-              <small className="text-[11px] text-[#4c5b4f] block mt-3">Diverted from campus compost & waste</small>
-            </div>
-
-            <div className="bg-white rounded-3xl p-6 border border-[#2a382e]/10 shadow-sm">
-              <p className="text-xs font-bold uppercase">Verified pickups</p>
-              <p className="mt-2 text-2xl font-bold">{completedClaims.length}</p>
-              <p className="mt-3 text-xs">Only donor-confirmed pickups count toward your totals.</p>
-            </div>
-          </div>
-        </section>
-        {/* Recent Activity Log */}
-        <section className="bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/10 shadow-sm mb-8">
-          <h3 className="font-['Space_Grotesk'] font-bold text-base text-[#182019] mb-4 flex items-center gap-2">
-            <Sparkles size={16} className="text-[#2c8a38]" />
-            <span>Recent Rescue Milestones</span>
-          </h3>
-          <div className="divide-y divide-[#2a382e]/10">
-            {completedClaims.length === 0 && <p className="text-sm">Your verified pickups will appear here.</p>}
-            {completedClaims.slice(0, 5).map(claim => <div key={claim.id} className="py-3">
-              <p className="font-bold text-sm">{claim.post_title}</p>
-              <p className="text-xs">{claim.quantity} portions · Verified pickup</p>
-            </div>)}
+        <section className="profile-impact" aria-labelledby="profile-impact-heading">
+          <header className="profile-impact-heading">
+            <h2 id="profile-impact-heading">Your Ecological Impact</h2>
+            <p>Based on donor-confirmed pickups.</p>
+          </header>
+          <dl className="profile-impact-totals">
+            <div><dt><UtensilsCrossed size={18} aria-hidden="true" />Portions rescued</dt><dd>{rescuedMeals}</dd></div>
+            <div><dt><CheckCircle2 size={18} aria-hidden="true" />Verified pickups</dt><dd>{completedClaims.length}</dd></div>
+          </dl>
+          <div className="profile-impact-activity">
+            <h3><Sparkles size={16} aria-hidden="true" />Recent rescues</h3>
+            {completedClaims.length === 0 ? <p className="profile-impact-empty">No verified pickups yet.</p>
+              : <ul>{completedClaims.slice(0, 5).map(claim => <li key={claim.id}>
+                <strong>{claim.post_title}</strong><span>{claim.quantity} portions · Verified pickup</span>
+              </li>)}</ul>}
           </div>
         </section>
 

@@ -1,3 +1,4 @@
+import LoadingState from '../../components/feedback/LoadingState';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import SignOutButton from '../../components/auth/SignOutButton';
@@ -169,13 +170,8 @@ export default function AdminDashboard({ userProfile }) {
   }
 
   const content = () => {
-    if (loading || loadedSection !== section) return <div className="admin-empty-state" role="status">Loading live admin data…</div>;
-    if (error && data === null) return <section className="admin-load-error" role="alert">
-      <h2>{ADMIN_NAV.find((item) => item.path.endsWith(`/${section}`))?.label || 'Admin page'}</h2>
-      <p className="admin-error-message">Could not load this page: {error}</p>
-      <p>Confirm the Supabase migrations are applied and this account has an active admin role, then try again.</p>
-      <button type="button" className="admin-action-button" onClick={refresh}>Try again</button>
-    </section>;
+    if (loading || loadedSection !== section) return <LoadingState label="Loading admin data" onRetry={refresh} />;
+    if (error && data === null) return <LoadingState error={error} onRetry={refresh} />;
 
     if (section === 'dashboard') {
       const stats = data || {};

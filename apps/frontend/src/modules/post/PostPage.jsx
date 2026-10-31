@@ -1,7 +1,9 @@
+import LoadingState from '../../components/feedback/LoadingState';
 import { friendlyError } from '../../services/request';
 import React, { useEffect, useState } from 'react';
-import { PlusCircle, ShieldCheck, HeartHandshake, Camera, X, Pencil, XCircle, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Camera, X, Pencil, XCircle, RefreshCw } from 'lucide-react';
 import PageShell from '../../components/layout/PageShell';
+import './PostPage.css';
 import PickupPinPicker from '../../components/post/PickupPinPicker';
 
 import { DurationPicker } from '../../components/ui/calamansi/duration-picker';
@@ -218,19 +220,15 @@ export default function PostPage({ userProfile }) {
 
   return (
     <PageShell>
-      <div className="h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
+      <div className="donor-post-page h-full w-full overflow-y-auto flex flex-col font-['DM_Sans',sans-serif] pb-28 relative">
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
+      <main className="post-content flex-1 w-full mx-auto">
 
         {userProfile?.status !== 'active' && <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Your account cannot publish new listings while it is suspended. You can still report concerns and finish existing pickups.
         </p>}
         
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-[#0c6b20] text-xs font-bold mb-2.5 border border-emerald-200">
-            <PlusCircle size={13} />
-            <span>{editingPostId ? 'EDIT FOOD LISTING' : 'CAMPUS FOOD DONOR HUB'}</span>
-          </div>
+        <div className="post-heading">
           <h1 className="font-['Space_Grotesk'] text-3xl font-extrabold text-[#182019]">
             Share Surplus Food
           </h1>
@@ -260,7 +258,7 @@ export default function PostPage({ userProfile }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="post-workspace">
           
           {/* Main Form */}
           <form noValidate onBlurCapture={(event) => {
@@ -268,9 +266,9 @@ export default function PostPage({ userProfile }) {
             if (!key) return;
             const errors = validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, pickupPin, photoFile }).errors;
             setFieldErrors(previous => ({ ...previous, [key]: errors[key] }));
-          }} aria-busy={loading} onSubmit={handleSubmit} className="md:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/15 shadow-sm space-y-5">
+          }} aria-busy={loading} onSubmit={handleSubmit} className="donor-post-form">
             
-            <div>
+            <div className="post-field post-title">
               <label htmlFor="food-name" className="block text-xs font-bold text-[#182019] mb-1.5">
                 Food Name / Title <span className="text-rose-500">*</span>
               </label>
@@ -288,7 +286,7 @@ export default function PostPage({ userProfile }) {
               {fieldErrors.foodName && <p id="food-name-error" className="mt-1 text-xs text-rose-700">{fieldErrors.foodName}</p>}
             </div>
 
-            <div>
+            <div className="post-field post-photo">
               <label htmlFor="photo-upload" className="block text-xs font-bold text-[#182019] mb-1.5">
                 Display Photo <span className="font-medium text-[#687066]">(optional)</span>
               </label>
@@ -327,7 +325,7 @@ export default function PostPage({ userProfile }) {
               {fieldErrors.photos && <p className="mt-1 text-xs text-rose-700" role="alert">{fieldErrors.photos}</p>}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="post-category grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="food-category" className="block text-xs font-bold text-[#182019] mb-1.5">
                   Category <span className="text-rose-500">*</span>
@@ -371,7 +369,7 @@ export default function PostPage({ userProfile }) {
               </div>
             </div>
 
-            <div>
+            <div className="post-field post-address">
               <label htmlFor="pickup-address" className="block text-xs font-bold text-[#182019] mb-1.5">
                 Pickup Location & Instructions <span className="text-rose-500">*</span>
               </label>
@@ -388,21 +386,21 @@ export default function PostPage({ userProfile }) {
               {fieldErrors.pickupAddress && <p className="mt-1 text-xs text-rose-700">{fieldErrors.pickupAddress}</p>}
             </div>
 
-            <div>
+            <div className="post-pin">
               <h2 className="mb-1.5 text-xs font-bold text-[#182019]">Pickup Pin <span className="text-rose-500">*</span></h2>
               <PickupPinPicker value={pickupPin} onChange={(pin) => { setPickupPin(pin); clearFieldError('pickupPin'); }} />
               {fieldErrors.pickupPin && <p className="mt-1 text-xs text-rose-700" role="alert">{fieldErrors.pickupPin}</p>}
             </div>
 
             {/* Liquid Duration Picker with Metaball Split */}
-            <div className="bg-[#fbfdf8] p-4 rounded-2xl border border-[#2a382e]/15">
+            <div className="post-duration">
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <label className="block text-xs font-bold text-[#182019]">
-                    Pickup Window Duration (Expiry Timer) <span className="text-rose-500">*</span>
+                    Pickup window <span className="text-rose-500">*</span>
                   </label>
                   <p className="text-[11px] text-[#687066]">
-                    Press the pen icon to edit hours and minutes with liquid metaballs.
+                    Choose how long your listing stays available.
                   </p>
                 </div>
               </div>
@@ -413,7 +411,7 @@ export default function PostPage({ userProfile }) {
                   onChange={(value) => { setDuration(value); clearFieldError('duration'); }}
                   onConfirm={(value) => { setDuration(value); clearFieldError('duration'); }}
                   variant="calamansi"
-                  size="lg"
+                  size="sm"
                 />
                 <span className="text-sm text-[#687066] font-medium">
                   → Expires in <b className="text-[#182019]">{duration.hours}h {duration.minutes}m</b>
@@ -422,7 +420,7 @@ export default function PostPage({ userProfile }) {
               {fieldErrors.duration && <p className="mt-1 px-2 text-xs text-rose-700">{fieldErrors.duration}</p>}
             </div>
 
-            <div>
+            <div className="post-field post-description">
               <label htmlFor="food-description" className="block text-xs font-bold text-[#182019] mb-1.5">
                 Description & Dietary Notes <span className="text-rose-500">*</span>
               </label>
@@ -442,7 +440,7 @@ export default function PostPage({ userProfile }) {
             <button
               type="submit"
               disabled={loading || userProfile?.status !== 'active' || !validateFoodPostDraft({ foodName, description, category, quantity, pickupAddress, duration, pickupPin, photoFile }).isValid}
-              className="bg-gradient-to-b from-[#2c8a38] to-[#1c6428] text-white rounded-2xl py-4 px-6 w-full mt-4 font-extrabold text-[15px] shadow-lg transition-all tracking-wide"
+              className="post-submit bg-gradient-to-b from-[#2c8a38] to-[#1c6428] text-white rounded-2xl py-4 px-6 w-full mt-4 font-extrabold text-[15px] shadow-lg transition-all tracking-wide"
             >
               {loading ? (photoFile ? 'Uploading Photo...' : editingPostId ? 'Saving Changes...' : 'Publishing Food Drop...') : (editingPostId ? 'Save Listing Changes' : 'Publish Food Drop Live')}
             </button>
@@ -458,33 +456,19 @@ export default function PostPage({ userProfile }) {
 
           </form>
 
-          {/* Posting Tips Rail */}
-          <aside className="space-y-4">
-            <div className="bg-white rounded-3xl p-6 border border-[#2a382e]/10 shadow-sm text-[#182019]">
-              <h4 className="font-bold text-sm flex items-center gap-2 mb-3 text-[#0c6b20]">
-                <ShieldCheck size={18} />
-                <span>Safe Sharing Guidelines</span>
-              </h4>
-              <ul className="text-xs space-y-2 text-[#4c5b4f] leading-relaxed">
-                <li>• <b>Temperature:</b> Keep hot food above 140°F and cold food chilled.</li>
-                <li>• <b>Packaging:</b> Use sealed or covered containers for sanitary pickup.</li>
-                <li>• <b>Allergens:</b> Clearly specify nuts, dairy, or gluten when known.</li>
-                <li>• <b>Pickup Window:</b> Set a realistic window so students can arrive on time.</li>
-              </ul>
-            </div>
-
-            <div className="bg-white rounded-3xl p-6 border border-[#2a382e]/10 shadow-sm text-center">
-              <div className="size-10 rounded-2xl bg-emerald-50 text-[#0c6b20] border border-emerald-200 flex items-center justify-center mx-auto mb-2">
-                <HeartHandshake size={20} />
-              </div>
-              <p className="font-bold text-xs text-[#182019]">Thank you for rescuing food!</p>
-              <p className="text-[11px] text-[#687066] mt-1">Every meal diverted prevents approximately 0.5 kg of greenhouse emissions.</p>
-            </div>
-          </aside>
+          <details className="post-guidelines">
+            <summary><ShieldCheck size={17} /> Safe sharing guidelines</summary>
+            <ul>
+              <li><b>Temperature:</b> Keep hot food above 140�F and cold food chilled.</li>
+              <li><b>Packaging:</b> Use sealed or covered containers for sanitary pickup.</li>
+              <li><b>Allergens:</b> Specify known nuts, dairy, or gluten.</li>
+              <li><b>Pickup:</b> Allow enough time for people to arrive.</li>
+            </ul>
+          </details>
 
         </div>
 
-        <section className="mt-10" aria-labelledby="your-listings-heading">
+        <section className="post-listings" aria-labelledby="your-listings-heading">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 id="your-listings-heading" className="font-['Space_Grotesk'] text-2xl font-extrabold text-[#182019]">Your Listings</h2>
@@ -494,9 +478,9 @@ export default function PostPage({ userProfile }) {
               <RefreshCw size={14} className={postsLoading ? 'animate-spin' : ''} /> Refresh
             </button>
           </div>
-          {postsError && <p className="mb-4 text-sm text-rose-700" role="alert">{postsError}</p>}
+          {postsError && <LoadingState error={postsError} onRetry={() => loadOwnPosts({ showLoading: true })} />}
           {postsLoading ? (
-            <p className="text-sm text-[#687066]">Loading your listings...</p>
+            <LoadingState label="Loading your listings" onRetry={() => loadOwnPosts({ showLoading: true })} />
           ) : ownPosts.length === 0 ? (
             <p className="rounded-2xl border border-[#2a382e]/10 bg-white p-5 text-sm text-[#687066]">You have no listings yet. Posts you create will appear here with their status and history.</p>
           ) : (

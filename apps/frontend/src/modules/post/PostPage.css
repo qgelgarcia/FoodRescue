@@ -1,0 +1,46 @@
+.post-content { max-width: 1180px; padding: 24px 24px 0; color: var(--theme-ink); }
+.post-heading { margin-bottom: 20px; }
+.post-heading h1 { margin: 0; font-size: 28px; }
+.post-heading p { margin-top: 6px; font-size: 14px; }
+.post-workspace { display: grid; gap: 12px; }
+.donor-post-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'title photo' 'category pin' 'address pin' 'description duration' 'submit submit'; gap: 16px 28px; align-items: start; padding: 24px; border-radius: 20px; background: var(--theme-surface); }
+.donor-post-form > * { min-width: 0; }
+.post-title { grid-area: title; }
+.post-photo { grid-area: photo; }
+.post-category { grid-area: category; }
+.post-address { grid-area: address; }
+.post-pin { grid-area: pin; }
+.post-description { grid-area: description; }
+.post-duration { grid-area: duration; }
+.donor-post-form .post-submit { grid-area: submit; min-height: 46px; margin: 0; padding: 12px 20px; box-shadow: none; }
+.donor-post-form > button:not(.post-submit) { grid-column: 1 / -1; }
+.donor-post-form label, .donor-post-form h2 { font-size: 13px; }
+.donor-post-form input:not([type=file]), .donor-post-form select { min-height: 44px; font-size: 14px; }
+.donor-post-form textarea { display: block; min-height: 72px; padding: 10px 12px; font-size: 14px; line-height: 1.5; }
+.post-photo > div { padding: 8px 12px; border: 0; background: var(--theme-raised); }
+.post-photo label[for=photo-upload]:not(:first-child) { flex-direction: row; gap: 12px; padding: 0; min-height: 44px; flex-wrap: wrap; }
+.post-photo label[for=photo-upload] > div { width: 36px; height: 36px; margin: 0; flex-shrink: 0; box-shadow: none; }
+.post-photo label[for=photo-upload] p { margin: 0; font-size: 12px; }
+.post-photo img { width: 48px; height: 48px; }
+.post-pin [aria-label^="Interactive pickup map"] { height: 180px; border-radius: 12px; }
+.post-pin p { font-size: 12px; line-height: 1.4; }
+.post-duration > div:last-of-type { padding: 8px 0 0; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 12px; }
+.post-duration > div:last-of-type > span { font-size: 12px; }
+.post-guidelines { padding: 0 8px; color: var(--theme-muted); font-size: 13px; }
+.post-guidelines summary { display: flex; align-items: center; gap: 8px; min-height: 44px; width: fit-content; cursor: pointer; color: var(--theme-accent); font-weight: 700; }
+.post-guidelines ul { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; padding: 8px 0 12px; list-style: none; }
+.post-listings { margin-top: 24px; }
+.donor-post-page a { text-decoration: none; }
+.donor-post-page :is(button,summary,a):focus-visible { outline: 3px solid var(--theme-accent); outline-offset: 3px; }
+@media (max-width: 760px) {
+  .post-content { padding: 20px 14px 0; }
+  .post-heading h1 { font-size: 25px; }
+  .post-heading p { font-size: 13px; line-height: 1.5; }
+  .donor-post-form { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'title' 'category' 'photo' 'description' 'address' 'pin' 'duration' 'submit'; gap: 18px; padding: 18px; }
+  .donor-post-form input:not([type=file]), .donor-post-form select, .donor-post-form textarea { font-size: 16px; }
+  .post-guidelines ul { grid-template-columns: 1fr; }
+}
+
+.donor-post-page main.post-content { width: 100%; max-width: 1180px; flex: none; margin: 0 auto; }
+.donor-post-form label { display: block; }
+.donor-post-form .post-photo label[for="photo-upload"].cursor-pointer { display: flex; flex-direction: row; justify-content: flex-start; gap: 10px; }

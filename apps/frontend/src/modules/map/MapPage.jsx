@@ -1,9 +1,11 @@
+import LoadingState from '../../components/feedback/LoadingState';
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { renderToStaticMarkup } from 'react-dom/server';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, Navigation, RefreshCw, LocateFixed, UtensilsCrossed, Apple, Croissant, Cookie } from 'lucide-react';
 import PageShell from '../../components/layout/PageShell';
+import './MapPage.css';
 import { getFoodPosts } from '../../services/food';
 import { friendlyError } from '../../services/request';
 import { availableMapPosts, hasPickupCoordinates } from '../../lib/map';
@@ -141,7 +143,7 @@ export default function MapPage({ userProfile }) {
 
   return <PageShell>
     <div className="h-full w-full overflow-y-auto flex flex-col pb-28">
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
+      <main className="pickup-map-page flex-1 w-full mx-auto px-4 py-8">
         <div className="pickup-map-heading">
           <div><span className="preview-eyebrow"><MapPin size={14} /> CAMPUS RESCUE MAP</span><h1>Pickup Map</h1><p>Explore available food and choose a pickup point to see its details.</p></div>
           <div className="pickup-map-tools">
@@ -150,7 +152,7 @@ export default function MapPage({ userProfile }) {
           </div>
         </div>
         {available.some(post => post.is_sample) && <p className="pickup-map-notice" role="status">Sample pickup points are for testing and do not represent real food locations.</p>}
-        {error && <div className="pickup-map-notice" role="alert">{error} <button type="button" onClick={() => setRevision(value => value + 1)}>Try again</button></div>}
+        {error && <LoadingState error={error} onRetry={() => setRevision(value => value + 1)} />}
         <div className="pickup-radius-controls">
           <label htmlFor="pickup-radius">Search radius</label>
           <select id="pickup-radius" value={radius} onChange={event => setRadius(Number(event.target.value))}>
@@ -160,17 +162,24 @@ export default function MapPage({ userProfile }) {
         </div>
         {locationError && <p className="pickup-map-notice" role="alert">{locationError}</p>}
         {userLocation && <p className="pickup-location-help">The green circle shows straight-line distance, not walking routes. Dashed blue circle: location accuracy (about {Math.round(userLocation.accuracy)} m). Faded pins are outside your radius.</p>}
+        <div className="pickup-map-workspace">
+        <section className="pickup-map-region" aria-label="Pickup map">
         <div className="pickup-map-frame">
           <div ref={container} className="pickup-map-canvas" aria-label="OpenStreetMap food pickup locations" />
-          {(loading || tilesLoading) && !tileError && <span className="pickup-map-loading" role="status">Loading pickup map…</span>}
+          {(loading || tilesLoading) && !tileError && <div className="pickup-map-loading"><LoadingState label="Loading pickup map" onRetry={() => setRevision(value => value + 1)} /></div>}
         </div>
         {tileError && <div className="pickup-map-notice" role="alert">Some map areas could not load. Check your connection and try again. <button type="button" onClick={() => setRevision(value => value + 1)}><RefreshCw size={14} /> Reload map</button></div>}
+        </section>
+        <aside className="pickup-map-sidebar" aria-labelledby="pickup-points-heading">
+          <div className="pickup-points-heading"><h2 id="pickup-points-heading">Food pickup points</h2><span>{loading ? '...' : nearby.length}</span></div>
         {!loading && !error && !located.length && <p className="pickup-map-notice">{available.length ? 'These listings do not have map locations yet.' : 'No food pickup points are available right now.'}</p>}
         {available.length > located.length && <p className="text-sm mt-3 text-[#687066]">{available.length - located.length} listing(s) have address instructions only.</p>}
         {userLocation && !loading && nearby.length === 0 && <p className="pickup-map-notice">No food pickup points are within this radius. Try a wider radius or check back later.</p>}
         <div className="pickup-location-list" aria-label="Available pickup locations">{nearby.map(post => <button key={post.id} type="button" className={selectedId === post.id ? 'is-selected' : ''} onClick={() => selectPickup(post)}>
           <MapPin size={18} /><span><strong>{post.food_name}</strong><span>{post.pickup_address}</span><small>{post.quantity_remaining} portions · {post.category}{post.is_sample ? ' · Sample' : ''}{userLocation ? ` · ${distanceLabel(post)}` : ''}</small></span>
         </button>)}</div>
+        </aside>
+        </div>
       </main>
     </div>
   </PageShell>;

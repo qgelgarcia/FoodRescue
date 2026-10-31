@@ -12,6 +12,7 @@ const allowed = new Set([
   '20261030010000_enable_notification_realtime.sql',
   '20261030020000_profile_avatars.sql',
   '20261030030000_notification_destinations.sql',
+  '20261030040000_chat_conversations.sql',
 ]);
 const env = dotenv.parse(await readFile(path.join(root, 'apps/backend/.env')));
 const databaseUrl = new URL((await readFile(path.join(root, 'supabase/.temp/pooler-url'), 'utf8')).trim());
@@ -73,6 +74,8 @@ try {
     to_regprocedure('public.cancel_food_post(uuid,text)') is not null as donor_cancellation,
     to_regprocedure('public.expire_food_posts()') is not null as expiration,
     to_regprocedure('public.claim_on_my_way(uuid)') is not null as departure,
+    to_regprocedure('public.save_chat_exchange(uuid,uuid,uuid,text,text,integer)') is not null
+      and to_regprocedure('public.create_chat_conversation(uuid)') is not null as private_chat_storage,
     exists(select 1 from information_schema.columns where table_schema='public' and table_name='notifications' and column_name='related_claim_id')
       and exists(select 1 from information_schema.columns where table_schema='public' and table_name='notifications' and column_name='related_report_id') as notification_destinations,
     case when exists(select 1 from information_schema.columns where table_schema='public' and table_name='notifications' and column_name='related_claim_id')
