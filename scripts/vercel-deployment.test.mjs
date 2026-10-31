@@ -27,7 +27,7 @@ test('Vercel API handler serves health, requires scheduler authentication, and d
  let server;const previous={NODE_ENV:process.env.NODE_ENV,VERCEL:process.env.VERCEL,EMAIL_DISPATCH_SECRET:process.env.EMAIL_DISPATCH_SECRET,EMAIL_NOTIFICATIONS_ENABLED:process.env.EMAIL_NOTIFICATIONS_ENABLED};
  process.env.NODE_ENV='test';process.env.VERCEL='1';process.env.EMAIL_DISPATCH_SECRET='fixture-scheduler-secret';process.env.EMAIL_NOTIFICATIONS_ENABLED='false';
  try{
- const file=path.join(dir,'api.mjs');await build({entryPoints:['api/[...path].ts'],outfile:file,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
+ const file=path.join(dir,'api.mjs');await build({entryPoints:['api/index.ts'],outfile:file,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
  const {default:app}=await import(pathToFileURL(file));
  server=await new Promise(resolve=>{const running=app.listen(0,'127.0.0.1',()=>resolve(running));});
  const base=`http://127.0.0.1:${server.address().port}`;

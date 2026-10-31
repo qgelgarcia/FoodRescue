@@ -1,6 +1,6 @@
 # FoodRescue Vercel deployment
 
-The repository root is the Vercel project root. Root vercel.json explicitly installs build-time dev dependencies even under NODE_ENV=production and builds apps/frontend with Vite and serves apps/frontend/dist. api/[...path].ts exposes the Express backend under /api on the same origin. Non-API browser routes fall back to index.html. Vercel imports do not start a local listener or an interval worker.
+The repository root is the Vercel project root. Root vercel.json explicitly installs build-time dev dependencies even under NODE_ENV=production and builds apps/frontend with Vite and serves apps/frontend/dist. api/index.ts exposes the Express backend under /api on the same origin. Non-API browser routes fall back to index.html. Vercel imports do not start a local listener or an interval worker.
 
 Project: foodrescue, LS-Customs. Production domain: https://foodrescue-three.vercel.app.
 
