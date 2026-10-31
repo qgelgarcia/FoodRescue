@@ -346,3 +346,12 @@ export async function updatePasswordFromRecovery(password, confirmation) {
   if (!result.error) clearPasswordRecoveryContext();
   return result;
 }
+
+
+export function watchAuthAccount(callback) {
+  if (!isSupabaseConfigured()) return () => {};
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') callback(session?.user?.id || null);
+  });
+  return () => subscription.unsubscribe();
+}

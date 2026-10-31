@@ -16,6 +16,7 @@ const allowed = new Set([
   '20261031010000_email_notifications.sql',
   '20261031020000_vercel_email_scheduler.sql',
   '20261031030000_protect_scheduler_credentials.sql',
+  '20261031040000_terms_acceptance.sql',
 ]);
 const env = dotenv.parse(await readFile(path.join(root, 'apps/backend/.env')));
 const databaseUrl = new URL((await readFile(path.join(root, 'supabase/.temp/pooler-url'), 'utf8')).trim());
@@ -74,6 +75,7 @@ try {
   }
   phase = 'verification';
   const { rows: state } = await client.query(`select
+    to_regprocedure('public.accept_current_terms(text,boolean)') is not null as versioned_terms_acceptance,
     to_regprocedure('public.dispatch_email_queue()') is not null as cloud_email_scheduler,
     to_regprocedure('public.claim_email_jobs(integer)') is not null
       and to_regprocedure('public.prepare_smtp_email_job(uuid,uuid)') is not null

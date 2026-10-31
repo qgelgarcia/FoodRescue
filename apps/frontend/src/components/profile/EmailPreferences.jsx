@@ -46,7 +46,7 @@ export default function EmailPreferences({ userId }) {
         <button type="button" onClick={locate} disabled={locating||busy}><MapPin size={16}/>{locating?'Finding location…':settings.alert_lat!==null?'Replace alert location':'Use current location for alerts'}</button>
         {settings.alert_lat!==null&&<span>Alert location selected</span>}
       </div>}
-      <footer><button type="submit" disabled={busy||locating}>{busy?'Saving…':'Save email settings'}</button><small>Turn nearby alerts off and save to remove your saved alert location.</small></footer>
+      <div className="email-settings-actions"><button type="submit" disabled={busy||locating}>{busy?'Saving…':'Save email settings'}</button><small>Turn nearby alerts off and save to remove your saved alert location.</small></div>
     </form>}
     {message&&<p role="status">{message}</p>}
   </section>;
