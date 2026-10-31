@@ -1,7 +1,7 @@
 import { ANSWER_PROMPT, CLASSIFIER_PROMPT, containsCredential, fixedScopeReply, localGuard, SCOPES, SCOPE_REPLY, type ChatMessage, type ChatScope } from './policy.js';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-export const DEFAULT_FREE_MODEL = 'xingchen-agi/xing4.0-29b-a4b:free';
+export const DEFAULT_FREE_MODEL = 'nvidia/nemotron-3.5-lightning:free';
 const CONNECTION_SETUP_MESSAGE = 'The AI connection needs attention. Please contact support so we can reconnect the assistant.';
 type Completion = { choices?: { finish_reason?: string; message?: { content?: unknown; refusal?: unknown } }[] };
 type Fetcher = typeof fetch;
@@ -14,9 +14,10 @@ async function completion(system: string, messages: ChatMessage[], schema: Recor
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey?.trim()) throw new ChatProviderError(503, CONNECTION_SETUP_MESSAGE);
   const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_FREE_MODEL;
-  if (model !== 'openrouter/free' && !/^[a-z0-9._-]+\/[a-z0-9._-]+:free$/i.test(model)) {
-    throw new ChatProviderError(503, 'Only free AI models are allowed. Please contact support to correct the assistant configuration.');
+  if (model !== DEFAULT_FREE_MODEL) {
+    throw new ChatProviderError(503, 'Only nvidia/nemotron-3.5-lightning:free is permitted. Please contact support to correct the assistant configuration.');
   }
+
   const response = await fetcher(ENDPOINT, {
     method: 'POST', signal,
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'FoodRescue Assistant' },

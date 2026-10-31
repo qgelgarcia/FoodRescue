@@ -1,0 +1,14 @@
+.git
+.vercel
+.env
+.env.*
+**/.env
+**/.env.*
+output
+**/android
+.agents
+.codex
+.vibe-wise
+docs
+scripts
+supabase

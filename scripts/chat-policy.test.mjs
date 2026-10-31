@@ -80,7 +80,7 @@ test('rejected provider credentials explain recovery without blaming the user se
 test('free-only policy rejects paid models before any provider request', async () => {
   const previous = process.env.OPENROUTER_MODEL;
   try {
-    for (const model of ['openai/gpt-4.1-mini', 'openrouter/auto', 'provider/paid-model']) {
+    for (const model of ['openai/gpt-4.1-mini', 'openrouter/auto', 'provider/paid-model', 'openrouter/free', 'vendor/other:free']) {
       process.env.OPENROUTER_MODEL = model;
       const fake = fakeProvider([{ scope: 'app' }, { scope: 'app', answer: 'Open Claims.' }]);
       await assert.rejects(answerChat([], 'How do I claim food?', undefined, fake.fetcher), error => error.status === 503);
@@ -89,10 +89,10 @@ test('free-only policy rejects paid models before any provider request', async (
   } finally { if (previous === undefined) delete process.env.OPENROUTER_MODEL; else process.env.OPENROUTER_MODEL = previous; }
 });
 
-test('default router and explicit free variants enforce zero-cost routing', async () => {
+test('only the pinned Nemotron model is used with zero-cost routing', async () => {
   const previous = process.env.OPENROUTER_MODEL;
   try {
-    for (const model of [undefined, 'openrouter/free', 'vendor/example:free']) {
+    for (const model of [undefined, DEFAULT_FREE_MODEL]) {
       if (model === undefined) delete process.env.OPENROUTER_MODEL; else process.env.OPENROUTER_MODEL = model;
       const fake = fakeProvider([{ scope: 'app' }, { scope: 'app', answer: 'Open Claims.' }]);
       await answerChat([], 'How do I claim food?', undefined, fake.fetcher);

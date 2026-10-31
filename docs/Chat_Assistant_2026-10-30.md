@@ -14,7 +14,7 @@ Unrelated topics receive a scope reminder. Common instruction-override/secret re
 
 ## Data and provider
 
-The server uses OpenRouter's [chat completion API](https://openrouter.ai/docs/api/api-reference/chat/create-a-chat-completion), with strict [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs). Default model is `xingchen-agi/xing4.0-29b-a4b:free`, the tested free structured-output endpoint compatible with the existing privacy policy. The backend rejects paid models and non-free routers before sending requests, and caps provider prompt/completion prices at zero. Only the free router or explicit `:free` variants are permitted; there is no paid fallback. Provider routing requests `data_collection: deny`, `zdr: true` and supported required parameters; routing failures do not downgrade those privacy settings. See [provider selection](https://openrouter.ai/docs/guides/routing/provider-selection).
+The server uses OpenRouter's [chat completion API](https://openrouter.ai/docs/api/api-reference/chat/create-a-chat-completion), with strict [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs). The only permitted model is `nvidia/nemotron-3.5-lightning:free`. Every other model or router is rejected before a network request; there is no fallback. Provider routing requests `data_collection: deny`, `zdr: true` and supported required parameters; routing failures do not downgrade those privacy settings. See [provider selection](https://openrouter.ai/docs/guides/routing/provider-selection).
 
 Only the member's question and up to 16 recent saved user/assistant messages are sent, plus the static app guide/policy. Profile names, phone, email, pickup codes, live claims and GPS are not automatically included. Members should avoid submitting private health details or credentials. Nutrition is general information; [NIDDK guidance](https://www.niddk.nih.gov/health-information/weight-management/choosing-a-safe-successful-weight-loss-program) supports involving a health professional when selecting a plan suited to individual health needs.
 
@@ -36,7 +36,7 @@ Ignored `apps/backend/.env`:
 
 ```text
 OPENROUTER_API_KEY=<local secret, never commit>
-OPENROUTER_MODEL=xingchen-agi/xing4.0-29b-a4b:free
+OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free
 ```
 
 The key must never be named `VITE_*`. Existing Supabase URL/service-role configuration is required on the server. The frontend dev server proxies `/api` to localhost:5000. Restart the backend after changing its environment. Production/native clients require an HTTPS `VITE_API_BASE_URL` and an allowed backend CORS origin; no native package is produced by this work.
@@ -54,11 +54,8 @@ Migration: `20261030040000_chat_conversations.sql` was applied to linked project
 
 ## Provider acceptance
 
-The supplied key was saved only in the ignored backend environment. A synthetic app-guidance request returned HTTP 401 from OpenRouter. The owner is updating the local key. Real AI-answer acceptance remains pending until a replacement key is ready and a synthetic end-to-end check passes. Do not substitute mock replies as production success or silently switch providers.
+The replacement local key authenticated successfully (HTTP 200). The selected `nvidia/nemotron-3.5-lightning:free` currently returns HTTP 404 because OpenRouter has no endpoint compatible with the existing zero-retention setting. The owner explicitly chose to retain zero retention and show unavailable when blocked. No privacy settings are relaxed to restore availability.
 
+## Exact free-model enforcement (2026-10-31)
 
-## Free-only enforcement (2026-10-31)
-
-Paid model IDs and non-free routers are blocked before any network request. The default pinned free variant and `openrouter/free` are permitted, along with explicit `:free` variants. All requests cap prompt, completion and per-request prices at zero, retain `data_collection: deny` and `zdr: true`, and never retry on paid models. Free endpoint exhaustion returns a recoverable busy/unavailable message.
-
-The replacement local key authenticated successfully (HTTP 200). The automatic free router and three other free structured-output variants rejected the existing ZDR policy. The pinned Xing free endpoint passed the routing filters but returned upstream HTTP 429 on two attempts. A successful real generated reply remains unverified until free-provider capacity recovers. No privacy restrictions were relaxed and no paid generation was requested.
+Only `nvidia/nemotron-3.5-lightning:free` is permitted. All other free models, automatic routers and paid models are rejected before generation. Requests cap prompt, completion and per-request prices at zero and retain `data_collection: deny` and `zdr: true`. Provider failures never switch models.

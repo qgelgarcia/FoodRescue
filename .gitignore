@@ -30,3 +30,6 @@ Thumbs.db
 # Generated local release artifacts
 output/release/
 output/node-compile-cache/
+
+# Vercel local account/project metadata
+.vercel/

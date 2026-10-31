@@ -62,12 +62,22 @@ before(async () => {
       grant usage, select, update on sequences to anon, authenticated, service_role;
   `);
 
+  // Hosted-extension boundaries are stubbed in PGlite; dispatcher behavior has its own tests.
+  await db.exec(`
+    create schema vault; create schema net; create schema cron;
+    create table vault.decrypted_secrets(name text,decrypted_secret text);
+    create function net.http_post(url text,headers jsonb,body jsonb,timeout_milliseconds integer)
+      returns bigint language sql as $$ select 1::bigint $$;
+    create function cron.schedule(text,text,text) returns bigint language sql as $$ select 1::bigint $$;
+  `);
+
   const migrations = (await readdir(migrationsPath))
     .filter((name) => /^\d+.*\.sql$/i.test(name))
     .sort();
   for (const migration of migrations) {
     try {
-      await db.exec(await readFile(path.join(migrationsPath, migration), 'utf8'));
+      await db.exec((await readFile(path.join(migrationsPath, migration), 'utf8'))
+        .replace(/^create extension if not exists (pg_net|supabase_vault)[^\n]*$/gm, ''));
     } catch (error) {
       throw new Error(`Failed to apply repository migration ${migration}: ${error.message}`, { cause: error });
     }

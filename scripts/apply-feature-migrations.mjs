@@ -13,6 +13,8 @@ const allowed = new Set([
   '20261030020000_profile_avatars.sql',
   '20261030030000_notification_destinations.sql',
   '20261030040000_chat_conversations.sql',
+  '20261031010000_email_notifications.sql',
+  '20261031020000_vercel_email_scheduler.sql',
 ]);
 const env = dotenv.parse(await readFile(path.join(root, 'apps/backend/.env')));
 const databaseUrl = new URL((await readFile(path.join(root, 'supabase/.temp/pooler-url'), 'utf8')).trim());
@@ -71,6 +73,10 @@ try {
   }
   phase = 'verification';
   const { rows: state } = await client.query(`select
+    to_regprocedure('public.dispatch_email_queue()') is not null as cloud_email_scheduler,
+    to_regprocedure('public.claim_email_jobs(integer)') is not null
+      and to_regprocedure('public.prepare_smtp_email_job(uuid,uuid)') is not null
+      and to_regprocedure('public.finish_email_job(uuid,uuid,text,text)') is not null as email_delivery_queue,
     to_regprocedure('public.cancel_food_post(uuid,text)') is not null as donor_cancellation,
     to_regprocedure('public.expire_food_posts()') is not null as expiration,
     to_regprocedure('public.claim_on_my_way(uuid)') is not null as departure,

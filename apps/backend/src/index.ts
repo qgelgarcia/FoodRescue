@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { healthRouter } from './routes/health.routes.js';
 import { chatRouter } from './routes/chat.routes.js';
+import { startEmailWorker, createEmailProcessor } from './email/worker.js';
+import { timingSafeEqual, createHash } from 'node:crypto';
 
 dotenv.config();
 
@@ -31,6 +33,19 @@ app.use(express.json({ limit: '1mb' }));
 // Routes
 app.use('/api', healthRouter);
 app.use('/api/chat', chatRouter);
+
+// Called by the authenticated Supabase scheduler, never by public clients.
+app.post('/api/internal/email-dispatch', async (req: Request,res: Response) => {
+  const secret=process.env.EMAIL_DISPATCH_SECRET;
+  const supplied=req.headers.authorization||'';
+  if(!secret||!timingSafeEqual(createHash('sha256').update(supplied).digest(),createHash('sha256').update(`Bearer ${secret}`).digest())) {
+    res.status(401).json({error:'AUTH_REQUIRED'});return;
+  }
+  const processor=createEmailProcessor();
+  if(!processor){res.status(503).json({error:'EMAIL_NOT_CONFIGURED'});return;}
+  try{await processor.run();res.status(200).json({success:true});}
+  finally{processor.close();}
+});
 
 // Root route
 app.get('/', (req: Request, res: Response) => {
@@ -63,7 +78,10 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  const stopEmailWorker = startEmailWorker();
+  process.once('SIGTERM', stopEmailWorker);
+  process.once('SIGINT', stopEmailWorker);
   app.listen(Number(PORT), process.env.HOST || '127.0.0.1', () => {
     console.log(`FoodRescue backend server running on http://localhost:${PORT}`);
   });

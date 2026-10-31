@@ -44,6 +44,8 @@ const topics = [
       <h4>Optional journey location</h4>
       <p>Location sharing requires your consent. Only the donor for that claim can read the latest shared coordinates. The app stores a current point rather than a route history. Foreground updates pause when you leave the sharing view or hide the app.</p>
       <p>Stopping sharing deletes that point. Pickup, effective cancellation, post removal and expiration also end sharing. Deadline access stops immediately; scheduled cleanup removes expired location records.</p>
+      <h4>Email notifications</h4>
+      <p>Pickup updates and handover receipts use your verified account email. Only the donor and recipient receive their pickup details. Nearby-food emails are optional and use one saved alert location and radius, not background tracking. Turn nearby alerts off and save in Email notifications to delete that saved location. Emails do not include pickup QR codes or passwords. Delivery requires a configured campus email sender.</p>
       <h4>AI conversations</h4>
       <p>Assistant conversations are saved to your account. When you send a message, your question and recent conversation context are sent to OpenRouter and a model provider to generate a reply. Avoid sharing private health details, passwords or pickup codes. You can delete a conversation from the assistant page. Nutrition answers are general information and may include estimates; the assistant does not provide medical diet prescriptions.</p>
       <h4>History and concerns</h4>

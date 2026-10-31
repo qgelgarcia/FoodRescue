@@ -1,0 +1,23 @@
+.email-settings { padding: 24px; margin-bottom: 32px; border-radius: 16px; background: var(--theme-surface); color: var(--theme-ink); }
+.email-settings header { margin-bottom: 24px; }
+.email-settings h2 { display: flex; gap: 8px; align-items: center; margin: 0 0 8px; font-size: 18px; font-weight: 750; }
+.email-settings p { color: var(--theme-muted); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.email-settings form { display: grid; gap: 20px; }
+.email-settings-option { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+.email-settings-option input { width: 20px; height: 20px; flex-shrink: 0; margin-top: 3px; accent-color: var(--theme-accent); }
+.email-settings-option span { display: grid; gap: 4px; }
+.email-settings strong { font-size: 15px; }
+.email-settings small { color: var(--theme-muted); font-size: 13px; line-height: 1.6; }
+.email-settings button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 44px; padding: 10px 16px; background: var(--theme-raised); color: var(--theme-ink); border: 0; border-radius: 10px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.email-settings button:disabled { opacity: .6; cursor: wait; }
+.email-settings :is(button,input,select):focus-visible { outline: 3px solid var(--theme-accent); outline-offset: 3px; }
+.email-settings-location { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding-left: 32px; }
+.email-settings-location label { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.email-settings select { min-height: 44px; padding: 8px; border: 1px solid var(--theme-line); border-radius: 8px; background: var(--theme-page); color: var(--theme-ink); font: inherit; }
+.email-settings-location > span { font-size: 13px; color: var(--theme-muted); }
+.email-settings footer { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.email-settings footer > button { background: var(--theme-accent); color: white; }
+:root[data-theme="dark"] .email-settings footer > button { color: #102016; }
+.email-settings p.email-settings-error { color: #b33737; }
+:root[data-theme="dark"] .email-settings p.email-settings-error { color: #ffb5ac; }
+@media(max-width:600px) { .email-settings { padding: 20px 18px; } .email-settings-location { padding-left: 0; } }

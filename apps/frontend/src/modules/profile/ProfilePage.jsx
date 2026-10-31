@@ -1,3 +1,4 @@
+import EmailPreferences from '../../components/profile/EmailPreferences';
 import AppearanceSettings from '../../components/auth/AppearanceSettings';
 import ProfileHelp from '../../components/profile/ProfileHelp';
 import React, { useEffect, useRef, useState } from 'react';
@@ -306,6 +307,8 @@ export default function ProfilePage({ userProfile }) {
               </li>)}</ul>}
           </div>
         </section>
+
+        <EmailPreferences key={userProfile?.id} userId={userProfile?.id} />
 
         {/* Settings & Support */}
         <section className="bg-white rounded-3xl p-6 sm:p-8 border border-[#2a382e]/10 shadow-sm">
