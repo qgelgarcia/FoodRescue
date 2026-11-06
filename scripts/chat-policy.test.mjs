@@ -108,7 +108,24 @@ test('only the pinned Nemotron model is used with zero-cost routing', async () =
 });
 
 
-test('free endpoint unavailability never retries on a paid model', async () => {
+test('unavailable primary retries only the pinned free fallback with the same privacy and price controls', async () => {
+  const fake = fakeProvider([{ scope: 'app' }, { scope: 'app', answer: 'Open Claims.' }]);
+  const fetcher = (url, options) => JSON.parse(options.body).model === DEFAULT_FREE_MODEL
+    ? Promise.resolve(new Response('no matching endpoint', { status: 404 }))
+    : fake.fetcher(url, options);
+  assert.equal(await answerChat([], 'How do I claim food?', undefined, fetcher), 'Open Claims.');
+  assert.equal(fake.calls.length, 2);
+  for (const { body } of fake.calls) {
+    assert.equal(body.model, 'xingchen-agi/xing4.0-29b-a4b:free');
+    assert.deepEqual(body.reasoning, { enabled: false });
+    assert.deepEqual(body.provider, {
+      require_parameters: true, data_collection: 'deny', zdr: true,
+      max_price: { prompt: 0, completion: 0, request: 0 },
+    });
+  }
+});
+
+test('free endpoint unavailability stops after the free fallback', async () => {
   for (const status of [404, 429]) {
     let calls = 0;
     const unavailable = async () => { calls++; return new Response('private provider trace', { status }); };
@@ -118,6 +135,6 @@ test('free endpoint unavailability never retries on a paid model', async () => {
       assert.doesNotMatch(error.message, /private provider/);
       return true;
     });
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
   }
 });

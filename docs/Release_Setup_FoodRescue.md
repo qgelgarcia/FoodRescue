@@ -39,9 +39,10 @@ Set the deployed origin and allowed web auth callback URLs in Supabase Auth. Pro
 
 The committed Capacitor project uses app ID `org.foodrescue.campus`, Android SDK 36, minimum Android API 24 and Java 21. Node 22 or newer is required by Capacitor 8. Official setup reference: https://capacitorjs.com/docs/getting-started/environment-setup.
 
-Set `JAVA_HOME` to a JDK 21 installation and `ANDROID_HOME` to the Android SDK. Install platform 36 and the matching build tools using Android SDK Manager. Use the same public frontend Supabase configuration as the desktop build.
+Set `JAVA_HOME` to a JDK 21 installation and `ANDROID_HOME` to the Android SDK. Install platform 36 and the matching build tools using Android SDK Manager. Use the same public frontend Supabase configuration as the desktop build. For Android Assistant requests, set `VITE_API_BASE_URL` to the absolute HTTPS origin of the deployed FoodRescue API.
 
 ```powershell
+$env:VITE_API_BASE_URL = 'https://foodrescue-three.vercel.app'
 ./scripts/build-android.ps1
 ```
 

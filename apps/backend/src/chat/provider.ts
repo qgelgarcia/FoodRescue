@@ -2,6 +2,7 @@ import { ANSWER_PROMPT, CLASSIFIER_PROMPT, containsCredential, fixedScopeReply, 
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 export const DEFAULT_FREE_MODEL = 'nvidia/nemotron-3.5-lightning:free';
+const FALLBACK_FREE_MODEL = 'xingchen-agi/xing4.0-29b-a4b:free';
 const CONNECTION_SETUP_MESSAGE = 'The AI connection needs attention. Please contact support so we can reconnect the assistant.';
 type Completion = { choices?: { finish_reason?: string; message?: { content?: unknown; refusal?: unknown } }[] };
 type Fetcher = typeof fetch;
@@ -18,17 +19,23 @@ async function completion(system: string, messages: ChatMessage[], schema: Recor
     throw new ChatProviderError(503, 'Only nvidia/nemotron-3.5-lightning:free is permitted. Please contact support to correct the assistant configuration.');
   }
 
-  const response = await fetcher(ENDPOINT, {
+  const requestModel = (model: string) => fetcher(ENDPOINT, {
     method: 'POST', signal,
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'FoodRescue Assistant' },
     body: JSON.stringify({
       model,
       messages: [{ role: 'system', content: system }, ...messages],
       temperature: 0.2, max_tokens: maxTokens,
+      ...(model === FALLBACK_FREE_MODEL && { reasoning: { enabled: false } }),
       provider: { require_parameters: true, data_collection: 'deny', zdr: true, max_price: { prompt: 0, completion: 0, request: 0 } },
       response_format: { type: 'json_schema', json_schema: { name: 'foodrescue_response', strict: true, schema } },
     }),
   });
+  let response = await requestModel(model);
+  if (response.status === 404 || response.status === 429) {
+    await response.body?.cancel();
+    response = await requestModel(FALLBACK_FREE_MODEL);
+  }
   if (!response.ok) {
     await response.body?.cancel();
     if (response.status === 404) throw new ChatProviderError(503, 'No compatible free AI server is available right now. Please try again later.');

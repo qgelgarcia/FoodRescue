@@ -22,6 +22,7 @@ This is a study roadmap and presentation reference. Source inspection establishe
 14. [Professor presentation plan](#14-professor-presentation-plan)
 15. [Practice questions](#15-practice-questions)
 16. [October 16 implementation and learning update](#16-october-16-implementation-and-learning-update)
+17. [Main code snippets and system connections](#17-main-code-snippets-and-system-connections)
 
 ## 1. The explanation to start with
 
@@ -615,3 +616,339 @@ For a professor demonstration, show the code and explain:
 - How React effects clean up Leaflet objects and interval timers.
 - Why a radius result is not a walking route and why permission errors need a usable fallback.
 - Which listings and claims are samples, which operations reach Supabase, and what has not been verified live.
+\r\n## 17. Main code snippets and system connections
+
+Added October 17, 2026. Excerpts below are copied from the current checkout, with imports or surrounding code omitted. They are reading aids, not standalone programs. Source inspection does not establish live deployment. Read the flow as browser startup → routing/profile → page state → service → Supabase/database or local storage → UI feedback.
+
+### A. Browser startup
+
+Source: `apps/frontend/src/main.jsx`.
+
+~~~jsx
+setupIonicReact();
+
+createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <IonApp>
+      <IonReactRouter>
+        <App />
+      </IonReactRouter>
+    </IonApp>
+  </React.StrictMode>
+);
+~~~
+
+**Functionality and system connection:** Initializes Ionic, finds the HTML `root` element, and mounts React. `IonApp` supplies the Ionic container; `IonReactRouter` supplies navigation context; `App` selects screens. `StrictMode` adds development checks. This code runs in the browser, before pages load their data.
+
+### B. Route and profile protection
+
+Source: `apps/frontend/src/guards/AuthGuard.jsx`.
+
+~~~jsx
+  useEffect(() => {
+    getCurrentProfile().then((p) => {
+      setProfile(p);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) {
+    return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}>Loading session...</div>;
+  }
+
+  return (
+    <Route
+      {...rest}
+      render={(props) =>
+        profile ? <Component {...props} userProfile={profile} /> : <Redirect to="/login" />
+      }
+    />
+  );
+}
+~~~
+
+**Functionality and system connection:** The effect calls `getCurrentProfile()` after mounting. Updating `profile` and `loading` causes a rerender. A profile renders the requested `Component`, forwarding router props and adding `userProfile`; otherwise the user goes to login. `App.jsx` applies this guard to `/app`, whose layout selects feed, map, post, history or profile. Admin routes use `RoleGuard`. These are navigation checks; database permissions must protect remote data independently. This effect has no rejection handler, so an unexpected rejected promise can leave loading visible.
+
+### C. Shared Supabase client
+
+Source: `apps/frontend/src/services/supabase.js`.
+
+~~~javascript
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+export const isSupabaseConfigured = () => Boolean(supabaseUrl && supabaseAnonKey);
+
+export const supabase = isSupabaseConfigured()
+  ? createClient(supabaseUrl, supabaseAnonKey, { global: { fetch: fetchWithTimeout } })
+  : createClient('https://placeholder.supabase.co', 'placeholder-anon-key');
+~~~
+
+**Functionality and system connection:** Vite supplies the project URL and public key. The configuration check tests presence, not connectivity or validity. Services share this client, which sends HTTPS requests to Supabase using the timeout wrapper. The placeholder permits imports in demo mode while service branches choose local behavior. The current food request path goes directly to Supabase; it does not pass through Express.
+
+### D. Feed loading and React state
+
+Source: `apps/frontend/src/modules/feed/HomeFeed.jsx`.
+
+~~~jsx
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  async function fetchPosts() {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getFoodPosts();
+      setPosts(data);
+    } catch (error) {
+      setPosts([]);
+      setError(friendlyError(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+~~~
+
+**Functionality and system connection:** Mounting triggers `fetchPosts`. It sets loading state, awaits the service, and places returned listings in `posts`. State updates cause React to render the results. Errors clear the array and show friendly feedback; `finally` clears loading in either outcome. Later, the page derives `filtered` from category/search state and renders a `FoodCard` for each result. Searching the loaded array is an in-memory operation, not a new database request.
+
+### E. Listing service and fallback
+
+Source: `apps/frontend/src/services/food.js`.
+
+~~~javascript
+export async function getFoodPosts() {
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('food_posts')
+      .select('*, donor:donor_id(full_name, phone)')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    if (!Array.isArray(data)) throw new Error('bad response');
+    if (data.length > 0 || !import.meta.env.DEV) return data;
+  }
+
+  // Load any locally created posts merged with defaults
+  const customPosts = readStoredArray(LOCAL_STORAGE_POSTS_KEY);
+  const inventory = readStoredObject(LOCAL_STORAGE_INVENTORY_KEY);
+
+  return [...customPosts, ...DEFAULT_POSTS].map((post) => {
+    const remaining = inventory[post.id];
+    if (typeof remaining !== 'number') return post;
+
+    return {
+      ...post,
+      quantity_remaining: remaining,
+      status: remaining === 0 ? 'fully_claimed' : post.status,
+    };
+  });
+}
+~~~
+
+**Functionality and system connection:** The query selects food rows plus related donor details, filters active status and orders newest first. Errors propagate to the page. Nonempty remote results return immediately; an empty configured production result also returns. An empty configured development result falls through to sample/local listings. Without configuration, that local path is used directly. Local inventory overrides remaining portions. Feed and map share this service. The remote query filters status, not expiry; configured request failures do not silently fall back to samples.
+
+### F. Publishing validated form values
+
+Source: `apps/frontend/src/modules/post/PostPage.jsx`.
+
+~~~javascript
+      const totalHours = (validation.values.duration.hours || 0) + (validation.values.duration.minutes || 0) / 60;
+      const result = await createFoodPost({
+        foodName: validation.values.foodName,
+        description: validation.values.description,
+        category: validation.values.category,
+        quantity: validation.values.quantity,
+        pickupAddress: validation.values.pickupAddress,
+        photoUrl: photos[0],
+        expiresHours: totalHours > 0 ? totalHours : 3
+      });
+
+      if (result?.error) throw new Error(result.error);
+~~~
+
+**Functionality and system connection:** Earlier submit code prevents the normal browser form submission and validates the controlled fields. This excerpt converts minutes to fractional hours and passes normalized values to `createFoodPost`. That service calculates expiry, checks quantity, then inserts a remote row with the session user as donor or stores a local listing. The surrounding handler resets fields on success and displays errors on failure. `photos[0]` is currently an object URL created for a browser preview; passing it does not upload an image. The remote service also uses fixed pickup coordinates, so publishing does not yet establish a durable photo or real donor location.
+
+### G. Claim button and parent callback
+
+Source: `apps/frontend/src/components/food/FoodCard.jsx`.
+
+~~~jsx
+  async function handleClaim(e) {
+    e.stopPropagation();
+    const validationError = validateClaimQuantity(post, portion);
+    if (validationError) {
+      setClaimError(validationError);
+      return;
+    }
+
+    setIsClaiming(true);
+    setClaimError('');
+    try {
+      const claim = await claimFoodPost(post, portion);
+      setClaimedNotice(true);
+      if (onClaimSuccess) onClaimSuccess(claim);
+      setTimeout(() => {
+        setClaimedNotice(false);
+        setIsModalOpen(false);
+      }, 3000);
+    } catch (error) {
+      setClaimError(friendlyError(error));
+    } finally {
+      setIsClaiming(false);
+    }
+  }
+~~~
+
+**Functionality and system connection:** The handler stops click propagation, validates portions and marks the operation pending. `await` waits for the service without blocking the entire browser. Success displays card feedback and calls the parent's `onClaimSuccess`; a timer later closes the modal. Errors become friendly text, and `finally` clears pending state. In `HomeFeed`, the callback shows a toast; it does not refetch listings. UI feedback therefore does not establish refreshed inventory.
+
+### H. Claim service and remote procedure call
+
+Source: `apps/frontend/src/services/food.js`.
+
+~~~javascript
+export async function claimFoodPost(post, portionCount = 1) {
+  const validationError = validateClaimQuantity(post, portionCount);
+  if (validationError) throw new Error(validationError);
+
+  if (isSupabaseConfigured() && !post.is_sample) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Please sign in before claiming food.');
+
+    const { error } = await supabase.rpc('claim_food', {
+      post_id: post.id,
+      claimant_id: session.user.id,
+      qty: portionCount,
+    });
+
+    if (error) throw new Error(error.message);
+  }
+~~~
+
+**Functionality and system connection:** The service validates again because it is a separate entry point. Configured nonsample claims require a session and send post ID, authenticated user ID and quantity to `claim_food`. The SDK turns `rpc` into an HTTPS request to Supabase, which executes the SQL function below. Samples bypass the remote operation. A remote error stops local success persistence. Only the RPC error is read here; the function does not retrieve the inserted database claim.
+
+### I. Database transaction: authoritative reservation
+
+Source: `supabase/migrations/20261003000000_harden_auth_and_claims.sql`.
+
+~~~sql
+create or replace function public.claim_food(post_id uuid, claimant_id uuid, qty int)
+returns void as $$
+begin
+  if auth.uid() is null or auth.uid() <> claimant_id then
+    raise exception 'The authenticated user can only create claims for their own account';
+  end if;
+
+  if qty is null or qty <= 0 then
+    raise exception 'Claim quantity must be greater than zero';
+  end if;
+
+  update public.food_posts
+  set quantity_remaining = quantity_remaining - qty,
+      status = case when quantity_remaining - qty <= 0 then 'fully_claimed' else status end
+  where id = post_id and quantity_remaining >= qty and status = 'active';
+
+  if not found then
+    raise exception 'Not enough quantity remaining or post is no longer active';
+  end if;
+
+  insert into public.claims (post_id, claimant_id, quantity_claimed)
+  values (post_id, claimant_id, qty);
+end;
+$$ language plpgsql security definer set search_path = public;
+
+revoke all on function public.claim_food(uuid, uuid, int) from public;
+grant execute on function public.claim_food(uuid, uuid, int) to authenticated;
+~~~
+
+**Functionality and system connection:** The function checks that the caller matches the claimant and that quantity is positive. A conditional UPDATE reduces stock only when the listing is active and sufficient portions remain. `FOUND` indicates whether a row changed; otherwise an exception rejects the claim. The INSERT creates the shared claim, whose schema default is pending. Both statements run in one transaction: an insert failure rolls back the stock change. PostgreSQL serializes competing updates to the same row and reevaluates the condition, preventing both callers from taking the final portion. `security definer` runs with owner privileges, so explicit checks matter; execution is granted to authenticated callers. This function does not enforce expiry or prohibit self-claims. Its presence in a migration does not prove it is deployed.
+
+### J. Local pickup persistence and event notification
+
+Source: `apps/frontend/src/services/food.js`.
+
+~~~javascript
+  // Persist locally
+  const claims = readStoredArray(LOCAL_STORAGE_CLAIMS_KEY);
+  claims.unshift(claimRecord);
+  localStorage.setItem(LOCAL_STORAGE_CLAIMS_KEY, JSON.stringify(claims));
+
+  const inventory = readStoredObject(LOCAL_STORAGE_INVENTORY_KEY);
+  inventory[post.id] = Number(post.quantity_remaining) - portionCount;
+  localStorage.setItem(LOCAL_STORAGE_INVENTORY_KEY, JSON.stringify(inventory));
+
+  // Dispatch event for UI reactivity
+  window.dispatchEvent(new CustomEvent('foodrescue:claim_updated', { detail: claimRecord }));
+  return claimRecord;
+}
+~~~
+
+**Functionality and system connection:** Immediately before this excerpt, the service builds a separate local claim with a generated ID/code and `ready_for_pickup` status. `unshift` puts it first; serialization saves it to localStorage. The inventory map records local remaining portions. The custom event tells mounted listeners in this window to reread local data. This happens after remote success or directly for demo claims. It is not a Supabase realtime event or cross-device synchronization. Storage keys are not scoped to the current account. A local failure after the RPC succeeds can leave a real reservation without the expected local pass.
+
+### K. History and effect cleanup
+
+Source: `apps/frontend/src/modules/history/HistoryPage.jsx`.
+
+~~~jsx
+  useEffect(() => {
+    loadClaims();
+    const handleUpdate = () => loadClaims();
+    window.addEventListener('foodrescue:claim_updated', handleUpdate);
+    return () => window.removeEventListener('foodrescue:claim_updated', handleUpdate);
+  }, []);
+
+  function loadClaims() {
+    setClaims(getActiveClaims());
+  }
+
+  function handleComplete(id) {
+    completeClaim(id);
+    loadClaims();
+  }
+~~~
+
+**Functionality and system connection:** History reads local claims into state on mount and reloads them when the custom event fires. The returned cleanup removes the listener on unmount. `handleComplete` calls the local mutation then reloads. Despite its name, `getActiveClaims` currently returns the stored array without account/status filtering. `completeClaim` changes local status to `picked_up`; it neither updates the shared database nor verifies donor handoff. `setClaims` triggers rendering; changing storage alone does not.
+
+### L. Express health endpoint
+
+Source: `apps/backend/src/routes/health.routes.ts`.
+
+~~~typescript
+healthRouter.get('/health', (req: Request, res: Response) => {
+  const response: ApiResponse<{ timestamp: string; service: string }> = {
+    success: true,
+    message: 'FoodRescue Backend API is running healthy',
+    data: {
+      timestamp: new Date().toISOString(),
+      service: 'foodrescue-backend'
+    }
+  };
+  res.json(response);
+});
+~~~
+
+**Functionality and system connection:** The handler builds a typed response with a runtime timestamp and sends JSON. `index.ts` mounts this router at `/api`, making the complete URL `/api/health`. Its CORS and JSON middleware run before route handling; later handlers cover missing routes and errors. `ApiResponse<T>` checks shape during compilation, not incoming data at runtime. This endpoint establishes that Express can answer a request, but performs no database check and does not handle the frontend's food operations.
+
+### M. Map: reusing listings for geographic filtering
+
+Source: `apps/frontend/src/modules/map/MapPage.jsx`.
+
+~~~javascript
+  const nearby = userLocation ? located.filter(post => L.latLng(userLocation.lat, userLocation.lng).distanceTo([post.pickup_lat, post.pickup_lng]) <= radius) : located;
+~~~
+
+**Functionality and system connection:** The map loads the same food service as the feed and filters listings with usable coordinates. React owns the selected radius and optional user location; Leaflet owns map objects and geographic distance calculations. When a location exists, this expression includes only listings within the chosen radius in meters; otherwise it keeps all located listings. User-initiated browser geolocation supplies the position. This is straight-line proximity, not a walking route. Markers and the pickup list present existing listings rather than creating another database.
+
+### N. One complete action to explain aloud
+
+For a claim of two portions:
+
+1. HomeFeed supplies a listing to FoodCard; the card stores the chosen quantity in state.
+2. The claim handler validates, shows pending state and calls the service.
+3. For a configured nonsample listing, the service gets the session and sends an HTTPS RPC request to Supabase.
+4. PostgreSQL checks identity and stock, reduces inventory and inserts a pending claim in one transaction. Failure reaches the card's error handling.
+5. The service then creates a separate local pickup pass and dispatches its browser event. Demo claims start at this local path.
+6. Mounted subscribers reread local claims, and the parent callback shows feedback. That callback does not refresh the feed's inventory array.
+7. History displays local records; its pickup action currently changes local storage rather than completing a shared donor-verified workflow.
+
+Keep execution boundaries explicit: React and localStorage run in the browser; Supabase handles authentication and table/RPC requests; PostgreSQL executes transaction logic; Express separately serves the health endpoint.

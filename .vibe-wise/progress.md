@@ -25,3 +25,10 @@
 - Verification evidence: frontend build and 11 Node tests passed after location/radius changes.
 - Demonstrated learner understanding: not assessed; checklist items remain unchecked.
 - User explicitly requested documentation update and a local Git commit; no new application design decision pending.
+
+## October 24 claim-workflow explanation
+
+- Requested: explain the implemented donor decisions, donor-approved cancellation, and QR/manual pickup logic using VibeWise.
+- Source checked: claims/food services, HistoryPage, PickupScanner and the October 22 claim-workflow migration.
+- Explanation covers reservation versus acceptance versus physical pickup; separate cancellation requests; one-time donor-only authorization; server-side checks and transaction/row-lock protection; React-to-Supabase RPC flow and visible-tab refresh.
+- No new design or application changes requested. Learner understanding has not been assessed; do not record these explanations as demonstrated mastery.

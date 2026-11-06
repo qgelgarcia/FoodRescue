@@ -6,7 +6,7 @@ Project: foodrescue, LS-Customs. Production domain: https://foodrescue-three.ver
 
 Server-only production environment variables are encrypted in Vercel: Supabase URL/anon/service-role configuration, OpenRouter key and exact model, Gmail sender/app password, email enablement, public app URL, allowed origin, and EMAIL_DISPATCH_SECRET. Only VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY and VITE_API_BASE_URL=/api are exposed to the browser. The service-role key, AI key and Gmail app password are never VITE variables. Local credential files, output, Android sources and account/project metadata are excluded from upload by .vercelignore. .vercel is ignored by Git.
 
-The chatbot is locked to nvidia/nemotron-3.5-lightning:free, with zero input/output/per-request prices and no model fallback. Zero retention and no provider data collection remain enabled by explicit owner choice. The model is currently unavailable under that privacy policy, so the app reports unavailability instead of switching models.
+The chatbot uses OpenRouter with zero input, output, and per-request prices. If `nvidia/nemotron-3.5-lightning:free` has no matching endpoint or is rate-limited, the backend tries `xingchen-agi/xing4.0-29b-a4b:free` once. Both models require zero data retention, no provider data collection, and strict structured output. If both routes fail, the app reports unavailability or rate limiting.
 
 ## Scheduled email delivery
 
